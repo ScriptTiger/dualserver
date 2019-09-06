@@ -5,3 +5,4 @@
 windows/.vs/DualServer/v16/.suo
 *.db
 *.opendb
+*.ipch
