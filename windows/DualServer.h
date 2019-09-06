@@ -23,6 +23,7 @@
 #define MYBYTE unsigned char
 #define MYWORD unsigned short
 #define MYDWORD unsigned int
+#define strcasecmp _stricmp
 
 #ifdef _MSC_VER
    #define strcasecmp _stricmp
@@ -43,7 +44,6 @@ using namespace std;
 #define MAX_COND_FORW 125
 #define MAX_TCP_CLIENTS 16
 #define MAX_WILD_HOSTS 125
-#define MAX_HOSTNAME_STR_SIZE 64
 
 #define RCODE_NOERROR 		0
 #define RCODE_FORMATERROR	1
@@ -208,9 +208,9 @@ struct data7 //cache
 			unsigned fixed: 1;
 			unsigned local: 1;
 			unsigned display: 1;
-			unsigned reserved1: 5;
-			char rangeInd;
-			MYWORD dhcpInd;
+			unsigned subnetFlg: 1;
+			signed rangeInd: 8;
+			unsigned dhcpInd: 20;
 		};
 	};
 	union
@@ -250,7 +250,7 @@ struct data71 //Lump
 typedef multimap<string, data7*> hostMap;
 typedef multimap<time_t, data7*> expiryMap;
 
-struct dnsRequest //dns request
+struct data5 //dns request
 {
 	dnsPacket *dnsp;
 	char *dp;
@@ -731,17 +731,50 @@ struct data15
 	};
 };
 
+#if defined(__LP64__) || defined(_WIN64) || (defined(__x86_64__) && !defined(__ILP32__) ) || defined(_M_X64) || defined(__ia64) || defined (_M_IA64) || defined(__aarch64__) || defined(__powerpc64__)
 struct data8 //client
 {
-	MYWORD dhcpInd;
-	MYBYTE bp_hlen;
-	MYBYTE local;
-	MYDWORD source;
+	union
+	{
+		MYDWORD filler;
+		struct
+		{
+			unsigned dhcpInd: 20;
+			unsigned bp_hlen: 8;
+			unsigned fixed: 1;
+			unsigned local: 1;
+			unsigned display: 1;
+			unsigned subnetFlg: 1;
+		};
+	};
 	MYDWORD ip;
 	time_t expiry;
 	MYBYTE bp_chaddr[16];
 	char hostname[64];
 };
+#else
+struct data8 //client
+{
+	union
+	{
+		MYDWORD filler;
+		struct
+		{
+			unsigned dhcpInd: 20;
+			unsigned bp_hlen: 8;
+			unsigned fixed: 1;
+			unsigned local: 1;
+			unsigned display: 1;
+			unsigned subnetFlg: 1;
+		};
+	};
+	MYDWORD ip;
+	time_t expiry;
+	MYDWORD filler1;
+	MYBYTE bp_chaddr[16];
+	char hostname[64];
+};
+#endif
 
 struct data1
 {
@@ -768,7 +801,7 @@ struct data2
 	WSADATA wsaData;
 	char zone[256];
 	MYBYTE zLen;
-	char authoritySmall[256];
+	//char authoritySmall[256];
 	char authority[256];
 	MYBYTE aLen;
 	CHAR nsP[256];
@@ -788,8 +821,8 @@ struct data2
 	MYDWORD retry;
 	MYDWORD expire;
 	MYDWORD minimum;
-	MYWORD minCache;
-	MYWORD maxCache;
+	time_t minCache;
+	time_t maxCache;
 	MYDWORD dhcpSize;
 	time_t expireTime;
 	MYDWORD httpClients[8];
@@ -802,7 +835,6 @@ struct data2
 	data13 dhcpRanges[MAX_DHCP_RANGES];
 	data14 rangeSet[MAX_RANGE_SETS];
 	ConnType dhcpReplConn;
-	MYBYTE hasFilter;
 	MYDWORD rangeStart;
 	MYDWORD rangeEnd;
 	MYBYTE *options;
@@ -812,6 +844,7 @@ struct data2
 	time_t dhcpRepl;
 	time_t dnsRepl;
 	time_t dnsCheck;
+	MYBYTE hasFilter;
 	MYBYTE rangeCount;
 	MYBYTE dhcpLogLevel;
 	MYBYTE dnsLogLevel;
@@ -825,64 +858,65 @@ MYBYTE fromBase64(MYBYTE *target, char *source);
 MYBYTE fromUUE(MYBYTE *target, char *source);
 MYBYTE getBaseValue(MYBYTE a);
 MYBYTE makeLocal(char *mapname);
-MYBYTE putIP(void *raw, MYDWORD data, int maxSize);
-MYBYTE putUnsignedLong(void *raw, MYDWORD data, int maxSize);
-MYBYTE putUnsignedShort(void *raw, MYWORD data, int maxSize);
+MYBYTE pIP(void *raw, MYDWORD data);
+MYBYTE pULong(void *raw, MYDWORD data);
+MYBYTE pUShort(void *raw, MYWORD data);
 MYBYTE addServer(MYDWORD *array, MYBYTE maxServers, MYDWORD ip);
 MYDWORD *findServer(MYDWORD *array, MYBYTE maxServers, MYDWORD ip);
 MYDWORD alad(data9 *req);
 MYDWORD calcMask(MYDWORD rangeStart, MYDWORD rangeEnd);
-MYDWORD chad(data9 *req);
+MYDWORD chkaddr(data9 *req);
 MYDWORD fIP(void *raw);
 MYDWORD fULong(void *raw);
 MYDWORD getClassNetwork(MYDWORD ip);
 MYDWORD getSerial(char *zone);
 MYDWORD getZone(MYBYTE ind, char *zone);
 MYDWORD resad(data9 *req);
-MYDWORD sDHCPMessage(data9 *req);
+MYDWORD sdmess(data9 *req);
 MYDWORD sendRepl(data7 *dhcpEntry);
 MYDWORD sendRepl(data9 *req);
 MYWORD fQu(char *query, dnsPacket *mess, char *raw);
 MYWORD fUShort(void *raw);
-MYWORD fDNSMessage(dnsRequest *req);
-MYWORD frDNSMessage(dnsRequest *req);
-MYWORD gDHCPMessage(data9 *req, MYBYTE sockInd);
-MYWORD gDNSMessage(dnsRequest *req, MYBYTE sockInd);
+MYWORD fdnmess(data5 *req);
+MYWORD frdnmess(data5 *req);
+MYWORD gdmess(data9 *req, MYBYTE sockInd);
+MYWORD gdnmess(data5 *req, MYBYTE sockInd);
 MYWORD myTokenize(char *target, char *source, const char *sep, bool whiteSep);
-MYWORD putQueryString(char *raw, char *query, int maxSize);
+MYWORD pQu(char *raw, char *query);
 MYWORD qLen(char *query);
 MYWORD recvTcpDnsMess(char *target, SOCKET sock, MYWORD targetSize);
-MYWORD scanloc(dnsRequest *req);
-MYWORD sDNSMessage(dnsRequest *req);
-MYWORD sendTCPmess(dnsRequest *req);
+MYWORD scanloc(data5 *req);
+MYWORD sdnmess(data5 *req);
+MYWORD sendTCPmess(data5 *req);
+bool checkIP(data9 *req, data17 *rangeData, MYDWORD ip);
 bool checkMask(MYDWORD mask);
 bool checkRange(data17 *rangeData, char rangeInd);
 bool chkQu(char *query);
 bool detectChange();
 bool getSecondary();
-bool getSection(const char *sectionName, char *buffer, unsigned int bufferSize, MYBYTE serial, char *fileName);
+bool getSection(const char *sectionName, char *buffer, MYBYTE serial, char *fileName);
 bool isIP(char *str);
 bool isInt(char *str);
 bool isLocal(MYDWORD ip);
 bool stopService(SC_HANDLE service);
 bool wildcmp(char *string, char *wild);
 char *IP2Auth(MYDWORD ip);
-char *IP2String(char *target, unsigned int targetsz, MYDWORD ip);
-char *IP2String(char *target, unsigned int targetsz, MYDWORD ip, MYBYTE dnsType);
-char *IP62String(char *target, unsigned int targetsz, MYBYTE *source);
+char *IP2String(char *target, MYDWORD ip);
+char *IP2String(char *target, MYDWORD ip, MYBYTE dnsType);
+char *IP62String(char *target, MYBYTE *source);
 char *cloneString(char *string);
-char *genHostName(char *target, unsigned int targetsz, MYBYTE *hex, MYBYTE bytes);
+char *genHostName(char *target, MYBYTE *hex, MYBYTE bytes);
 char *getHexValue(MYBYTE *target, char *source, MYBYTE *size);
-char *hex2String(char *target, unsigned int targetsz, MYBYTE *hex, MYBYTE bytes);
+char *hex2String(char *target, MYBYTE *hex, MYBYTE bytes);
 char *myLower(char *string);
 char *myUpper(char *string);
 char *readSection(char* buff, FILE *f);
-char *setMapName(char *tempbuff, unsigned int targetsz, char *mapname, MYBYTE dnsType);
-char *strquery(dnsRequest *req);
+char *setMapName(char *tempbuff, char *mapname, MYBYTE dnsType);
+char *strquery(data5 *req);
 char *toBase64(MYBYTE *source, MYBYTE length);
 char *toUUE(char *tempbuff, MYBYTE *source, MYBYTE length);
 char getRangeInd(MYDWORD ip);
-char* getResult(dnsRequest *req);
+char* getResult(data5 *req);
 char* myGetToken(char* buff, MYBYTE index);
 char* myTrim(char *target, char *source);
 data7 *createCache(data71 *lump);
@@ -907,27 +941,26 @@ void addEntry(data7 *entry);
 void addHostNotFound(char *hostname);
 void addMacRange(MYBYTE rangeSetInd, char *macRange);
 void addOptions(data9 *req);
-void addRRA(dnsRequest *req);
-void addRRAOne(dnsRequest *req);
-void addRRAd(dnsRequest *req);
-void addRRAny(dnsRequest *req);
-void addRRCNOne(dnsRequest *req);
-void addRRCache(dnsRequest *req, data7 *cache);
-void addRREmpty(dnsRequest *req);
-void addRRError(dnsRequest *req, MYBYTE rcode);
-void addRRExt(dnsRequest *req);
-void addRRLocalhostA(dnsRequest *req, data7 *cache);
-void addRRLocalhostPtr(dnsRequest *req, data7 *cache);
-void addRRMX(dnsRequest *req);
-void addRRMXOne(dnsRequest *req, MYBYTE m);
-void addRRNS(dnsRequest *req);
-void addRRNone(dnsRequest *req);
-void addRRPtr(dnsRequest *req);
-void addRRPtrOne(dnsRequest *req);
-void addRRSOA(dnsRequest *req);
-void addRRSTAOne(dnsRequest *req);
-void addRRServerA(dnsRequest *req);
-void addRRWildA(dnsRequest *req, MYDWORD ip);
+void addRRA(data5 *req);
+void addRRAOne(data5 *req);
+void addRRAd(data5 *req);
+void addRRAny(data5 *req);
+void addRRCNOne(data5 *req);
+void addRRCache(data5 *req, data7 *cache);
+void addRREmpty(data5 *req);
+void addRRError(data5 *req, MYBYTE rcode);
+void addRRExt(data5 *req);
+void addRRLocalhostA(data5 *req, data7 *cache);
+void addRRLocalhostPtr(data5 *req, data7 *cache);
+void addRRMX(data5 *req);
+void addRRMXOne(data5 *req, MYBYTE m);
+void addRRNS(data5 *req);
+void addRRNone(data5 *req);
+void addRRPtr(data5 *req);
+void addRRPtrOne(data5 *req);
+void addRRSOA(data5 *req);
+void addRRSTAOne(data5 *req);
+void addRRWildA(data5 *req, MYDWORD ip);
 void addUserClass(MYBYTE rangeSetInd, char *userClass, MYBYTE userClassSize);
 void addVendClass(MYBYTE rangeSetInd, char *vendClass, MYBYTE vendClassSize);
 void calcRangeLimits(MYDWORD ip, MYDWORD mask, MYDWORD *rangeStart, MYDWORD *rangeEnd);
@@ -938,7 +971,6 @@ void debug(int i);
 void delDnsEntry(data7* cache);
 void emptyCache(MYBYTE ind);
 void expireEntry(MYDWORD ip);
-void getHostPhysAddresses();
 void getInterfaces(data1 *network);
 void holdIP(MYDWORD ip);
 void installService();
@@ -950,13 +982,13 @@ void lockIP(MYDWORD ip);
 void lockOptions(FILE *f);
 void logDHCPMess(char *logBuff, MYBYTE logLevel);
 void logDNSMess(char *logBuff, MYBYTE logLevel);
-void logDNSMess(dnsRequest *req, char *logBuff, MYBYTE logLevel);
+void logDNSMess(data5 *req, char *logBuff, MYBYTE logLevel);
 void logDirect(char *mess);
 void logMess(char *logBuff, MYBYTE logLevel);
-void logTCPMess(dnsRequest *req, char *logBuff, MYBYTE logLevel);
+void logTCPMess(data5 *req, char *logBuff, MYBYTE logLevel);
 void mySplit(char *name, char *value, char *source, char splitChar);
 void procHTTP(data19 *req);
-void procTCP(dnsRequest *req);
+void procTCP(data5 *req);
 void pvdata(data9 *req, data3 *op);
 void recvRepl(data9 *req);
 void runProg();
@@ -964,7 +996,6 @@ void runService();
 void sendScopeStatus(data19 *req);
 void sendServerName();
 void sendStatus(data19 *req);
-void sendJSONStatus(data19 *req);
 void setLeaseExpiry(data7 *dhcpEntry);
 void setLeaseExpiry(data7 *dhcpEntry, MYDWORD lease);
 void setTempLease(data7 *dhcpEntry);
@@ -972,3 +1003,4 @@ void showError(MYDWORD enumber);
 void uninstallService();
 void updateDNS(data9 *req);
 FILE *pullZone(SOCKET sock);
+

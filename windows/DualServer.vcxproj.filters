@@ -24,4 +24,7 @@
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="SupportedOS.manifest" />
+  </ItemGroup>
 </Project>

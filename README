@@ -1,8 +1,14 @@
-This release 7.29 is a Stable Release
+This release 7.39 is a Stable Release
 
-ENHANCEMENTS in 7.29
+ENHANCEMENTS in 7.39
 
-1) Major Debug and Code Fix for Zone Replication under heavy load
+1) Minor Bug Fixes
+
+ENHANCEMENTS in 7.30
+
+1) Minor code fixing for html page.
+2) Deframgmentation of forwarding message has been enabled to workaround the fire wall.
+3) Issue with option 121 is fixed.
 
 ENHANCEMENTS in 7.10
 
@@ -24,7 +30,7 @@ DNS & router, it detects these settings from server machine (If you want differe
 setting for clients, edit ini file) and uses them for configuring other machines
 on local network.
 
-Expand the GZ archive to any directory (like /opt/dualserver )
+Expand the gz archive to any directory (like /opt/dualserver )
 Change the permissions of file dualserver with chmod 755 dualserver
 
 test run as root:-
@@ -104,7 +110,7 @@ to any of above scripts (preferably to /etc/rc.d/rc.inet2)
 RECOMPILING
 
 Recompiling is not generally needed on 32 bit Intel/Linux systems.
-For other system, you can try:-
+For other Linux system, you can try:-
 
 #g++ dualserverd.cpp -odualserverd -lpthread
 #g++ dualserverd.cpp -odualserverd -lpthread -lgcc_s

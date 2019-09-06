@@ -26,7 +26,7 @@
 #define MAX_RANGE_FILTERS 32
 #define MAX_COND_FORW 125
 #define MAX_TCP_CLIENTS 16
-#define MAX_WILD_HOSTS 125
+#define MAX_WILD_HOSTS 256
 
 #ifndef LOG_MAKEPRI
 #define	LOG_MAKEPRI(fac, pri)	(((fac) << 3) | (pri))
@@ -275,8 +275,8 @@ struct data7 //cache
 	{
 		struct
 		{
-			MYBYTE dnsType;
 			MYBYTE cType;
+			MYBYTE dnsType;
 			MYBYTE sockInd;
 			MYBYTE dnsIndex;
 		};
@@ -285,9 +285,9 @@ struct data7 //cache
 			unsigned fixed: 1;
 			unsigned local: 1;
 			unsigned display: 1;
-			unsigned reserved1: 5;
-			char rangeInd;
-			MYWORD dhcpInd;
+			unsigned subnetFlg: 1;
+			signed rangeInd: 8;
+			unsigned dhcpInd: 20;
 		};
 	};
 	union
@@ -806,17 +806,64 @@ struct DhcpConnType
 	};
 };
 
+#if defined(__LP64__) || defined(_WIN64) || (defined(__x86_64__) && !defined(__ILP32__) ) || defined(_M_X64) || defined(__ia64) || defined (_M_IA64) || defined(__aarch64__) || defined(__powerpc64__)
 struct data8 //client
 {
-	MYWORD dhcpInd;
-	MYBYTE bp_hlen;
-	MYBYTE local;
-	MYDWORD source;
+	union
+	{
+		MYDWORD filler;
+		struct
+		{
+			unsigned dhcpInd: 20;
+			unsigned bp_hlen: 8;
+			unsigned fixed: 1;
+			unsigned local: 1;
+			unsigned display: 1;
+			unsigned subnetFlg: 1;
+		};
+	};
 	MYDWORD ip;
 	time_t expiry;
 	MYBYTE bp_chaddr[16];
 	char hostname[64];
 };
+#else
+struct data8 //client
+{
+	union
+	{
+		MYDWORD filler;
+		struct
+		{
+			unsigned dhcpInd: 20;
+			unsigned bp_hlen: 8;
+			unsigned fixed: 1;
+			unsigned local: 1;
+			unsigned display: 1;
+			unsigned subnetFlg: 1;
+		};
+	};
+	MYDWORD ip;
+	time_t expiry;
+	MYDWORD filler1;
+	MYBYTE bp_chaddr[16];
+	char hostname[64];
+};
+#endif
+
+/*
+struct data8 //client
+{
+	MYWORD dhcpInd;
+	MYBYTE bp_hlen;
+	unsigned local: 8;
+	unsigned source: 16;
+	unsigned ip: 32;
+	unsigned expiry: 32;
+	MYBYTE bp_chaddr[16];
+	char hostname[64];
+};
+*/
 
 struct data1
 {
@@ -890,19 +937,19 @@ struct data2
 	data12 dnsRanges[MAX_DNS_RANGES];
 	data13 dhcpRanges[MAX_DHCP_RANGES];
 	data14 rangeSet[MAX_RANGE_SETS];
-	MYBYTE hasFilter;
 	MYDWORD rangeStart;
 	MYDWORD rangeEnd;
 	MYBYTE *options;
 	char logFileName[256];
-	MYWORD dhcpInd;
 	MYDWORD failureCount;
 	MYDWORD failureCycle;
+	MYWORD dhcpInd;
 	MYBYTE dhcpLogLevel;
 	MYBYTE rangeCount;
 	MYBYTE dnsLogLevel;
 	MYBYTE authorized;
 	MYBYTE replication;
+	MYBYTE hasFilter;
 };
 
 struct data15
@@ -928,7 +975,7 @@ MYBYTE addServer(MYDWORD *array, MYBYTE maxServers, MYDWORD ip);
 MYDWORD *findServer(MYDWORD *array, MYBYTE maxServers, MYDWORD ip);
 MYDWORD alad(data9 *req);
 MYDWORD calcMask(MYDWORD rangeStart, MYDWORD rangeEnd);
-MYDWORD chad(data9 *req);
+MYDWORD chkaddr(data9 *req);
 MYDWORD fIP(void *raw);
 MYDWORD fULong(void *raw);
 MYDWORD getClassNetwork(MYDWORD ip);
@@ -951,6 +998,7 @@ MYWORD recvTcpDnsMess(char *target, SOCKET sock, MYWORD targetSize);
 MYWORD scanloc(data5 *req);
 MYWORD sdnmess(data5 *req);
 MYWORD sendTCPmess(data5 *req);
+bool checkIP(data9 *req, data17 *rangeData, MYDWORD ip);
 bool checkMask(MYDWORD mask);
 bool checkRange(data17 *rangeData, char rangeInd);
 bool chkQu(char *query);
@@ -1019,7 +1067,6 @@ void addRRPtr(data5 *req);
 void addRRPtrOne(data5 *req);
 void addRRSOA(data5 *req);
 void addRRSTAOne(data5 *req);
-void addRRServerA(data5 *req);
 void addRRWildA(data5 *req, MYDWORD ip);
 void addUserClass(MYBYTE rangeSetInd, char *userClass, MYBYTE userClassSize);
 void addVendClass(MYBYTE rangeSetInd, char *vendClass, MYBYTE vendClassSize);

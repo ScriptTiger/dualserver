@@ -2,6 +2,6 @@
 /windows/Release
 /windows/x64
 /windows/Debug
-/windows/.vs/DualServer/v14/*.suo
-/windows/*.opendb
-/windows/*.db
+windows/.vs/DualServer/v16/.suo
+*.db
+*.opendb

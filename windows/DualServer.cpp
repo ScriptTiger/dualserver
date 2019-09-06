@@ -6,7 +6,7 @@
 *   it under the terms of the GNU General Public License as published by  *
 *   the Free Software Foundation; either version 2 of the License, or     *
 *   (at your option) any later version.                                   *
-*                                                                         *
+*                     a                                                   *
 *   This program is distributed in the hope that it will be useful,       *
 *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
 *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
@@ -27,9 +27,7 @@
 #include <iphlpapi.h>
 #include <process.h>
 #include <math.h>
-#include <VersionHelpers.h>
 #include "DualServer.h"
-#include <iostream>
 
 //Global Variables
 bool kRunning = true;
@@ -37,12 +35,11 @@ bool verbatim = false;
 SERVICE_STATUS serviceStatus;
 SERVICE_STATUS_HANDLE serviceStatusHandle = 0;
 HANDLE stopServiceEvent = 0;
-//data1 network;
 data1 network;
 data2 cfig;
 data9 token;
 data9 dhcpr;
-dnsRequest dnsr;
+data5 dnsr;
 data71 lump;
 data18 magin;
 MYBYTE currentInd = 0;
@@ -56,15 +53,14 @@ char displayName[] = "Dual DHCP DNS Service";
 //char extbuff[512];
 //char logBuff[512];
 char htmlTitle[256] = "";
-char filePATH[_MAX_PATH] = "";
-char iniFile[_MAX_PATH] = "";
-char leaFile[_MAX_PATH] = "";
-char logFile[_MAX_PATH] = "";
-char logPath[_MAX_PATH] = "";
-char htmFile[_MAX_PATH] = "";
-char lnkFile[_MAX_PATH] = "";
-char tempFile[_MAX_PATH] = "";
-char cliFile[_MAX_PATH] = "";
+char filePATH[_MAX_PATH];
+char iniFile[_MAX_PATH];
+char leaFile[_MAX_PATH];
+char logFile[_MAX_PATH];
+char htmFile[_MAX_PATH];
+char lnkFile[_MAX_PATH];
+char tempFile[_MAX_PATH];
+char cliFile[_MAX_PATH];
 char arpa[] = ".in-addr.arpa";
 char ip6arpa[] = ".ip6.arpa";
 bool dhcpService = true;
@@ -76,153 +72,143 @@ fd_set writefds;
 HANDLE lEvent;
 HANDLE fEvent;
 HANDLE rEvent;
-byte hostPhysAddress[MAX_SERVERS][8];
-unsigned int adBlockCounter = 0;
-
-// Ports
-unsigned short dnsPort = IPPORT_DNS;
-unsigned short dnsForwardPort = IPPORT_DNS;
-unsigned short dhcpServerPort = IPPORT_DHCPS;
-unsigned short dhcpClientPort = IPPORT_DHCPC;
 
 //constants
 const char NBSP = 32;
 const char RANGESET[] = "RANGE_SET";
 const char GLOBALOPTIONS[] = "GLOBAL_OPTIONS";
-//const char base64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-const char send200[] = "HTTP/1.1 200 OK\r\nDate: %s\r\nLast-Modified: %s\r\nContent-Type: text/html\r\nConnection: Close\r\nContent-Length:         \r\n\r\n";
-//const char send200[] = "HTTP/1.1 200 OK\r\nDate: %s\r\nLast-Modified: %s\r\nContent-Type: text/html\r\nConnection: Close\r\nTransfer-Encoding: chunked\r\n";
-//const char send403[] = "HTTP/1.1 403 Forbidden\r\nDate: %s\r\nLast-Modified: %s\r\nContent-Type: text/html\r\nConnection: Close\r\n\r\n";
+const char base64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+//const char send403[] = "HTTP/1.1 403 Forbidden\r\nDate: %s\r\nLast-Modified: %s\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n";
 const char send403[] = "HTTP/1.1 403 Forbidden\r\n\r\n<h1>403 Forbidden</h1>";
 const char send404[] = "HTTP/1.1 404 Not Found\r\n\r\n<h1>404 Not Found</h1>";
 const char td200[] = "<td>%s</td>";
-const char sVersionName[] = "Dual DHCP DNS Server Windows";
-const char sVersionNumber[] = "7.34";
-
-const char htmlStart[] = "<html>\n<head>\n<title>%s</title><meta http-equiv=\"refresh\" content=\"60\">\n<meta http-equiv=\"cache-control\" content=\"no-cache\">\n</head>\n";
+const char tdnowrap200[] = "<td nowrap>%s</td>";
+const char sVersion[] = "Dual DHCP DNS Server Version 7.40 Windows Build 7050";
+const char htmlStart[] = "<html>\n<head>\n<title>%s</title>\n<meta http-equiv=\"refresh\" content=\"60\">\n<meta http-equiv=\"cache-control\" content=\"no-cache\">\n</head>\n";
 //const char bodyStart[] = "<body bgcolor=\"#cccccc\"><table width=\"800\"><tr><td align=\"center\"><font size=\"5\"><b>%s</b></font></b></b></td></tr><tr><td align=\"right\"><a target=\"_new\" href=\"http://dhcp-dns-server.sourceforge.net/\">http://dhcp-dns-server.sourceforge.net/</b></b></td></tr></table>";
-const char bodyStart[] = "<body bgcolor=\"#cccccc\"><table width=640><tr><td align=\"center\"><font size=\"5\"><b>%s Version %s</b></font></td></tr><tr><td align=\"right\"><a target=\"_new\" href=\"http://dhcp-dns-server.sourceforge.net\">http://dhcp-dns-server.sourceforge.net</td></tr></table>";
+//const char bodyStart[] = "<body bgcolor=\"#cccccc\"><table width=640><tr><td align=\"center\"><font size=\"5\"><b>%s</b></font></td></tr><tr><td align=\"right\"><a target=\"_new\" href=\"http://dhcp-dns-server.sourceforge.net\">http://dhcp-dns-server.sourceforge.net</td></tr></table>";
+const char bodyStart[] = "<body bgcolor=\"#cccccc\"><table border=\"0\"><tr><td>\n<table width=\"100%%\" border=\"0\"><tr><td nowrap colspan=\"2\" align=\"center\"><font size=\"6\"><b>%s</b></font></td></tr><tr><td align=\"left\"><b>Server:</b> %s %s</td><td align=\"right\"><a target=\"_new\" href=\"http://dhcp-dns-server.sourceforge.net\">http://dhcp-dns-server.sourceforge.net</td></tr></table>";
 //const char bodyStart[] = "<body bgcolor=\"#cccccc\"><table width=640><tr><td align=\"center\"><font size=\"5\"><b>%s</b></font></td></tr><tr><td align=\"center\"><font size=\"5\">%s</font></td></tr></table>";
 const data4 opData[] =
-	{
-		{ "SubnetMask", 1, 3 , 1},
-		{ "TimeOffset", 2, 4 , 1},
-		{ "Router", 3, 3 , 1},
-		{ "TimeServer", 4, 3 , 1},
-		{ "NameServer", 5, 3 , 1},
-		{ "DomainServer", 6, 3 , 1},
-		{ "LogServer", 7, 3 , 1},
-		{ "QuotesServer", 8, 3 , 1},
-		{ "LPRServer", 9, 3 , 1},
-		{ "ImpressServer", 10, 3 , 1},
+    {
+		{ "SubnetMask", 1, 3, 1},
+		{ "TimeOffset", 2, 4, 1},
+		{ "Router", 3, 3, 1},
+		{ "TimeServer", 4, 3, 1},
+		{ "NameServer", 5, 3, 1},
+		{ "DomainServer", 6, 3, 1},
+		{ "LogServer", 7, 3, 1},
+		{ "QuotesServer", 8, 3, 1},
+		{ "LPRServer", 9, 3, 1},
+		{ "ImpressServer", 10, 3, 1},
 		{ "RLPServer", 11, 3, 1},
 		{ "Hostname", 12, 1, 1},
-		{ "BootFileSize", 13, 5 , 1},
-		{ "MeritDumpFile", 14, 1 , 1},
-		{ "DomainName", 15, 1 , 1},
-		{ "SwapServer", 16, 3 , 1},
-		{ "RootPath", 17, 1 , 1},
-		{ "ExtensionFile", 18, 1 , 1},
-		{ "ForwardOn/Off", 19, 7 , 1},
-		{ "SrcRteOn/Off", 20, 7 , 1},
-		{ "PolicyFilter", 21, 8 , 1},
-		{ "MaxDGAssembly", 22, 5 , 1},
-		{ "DefaultIPTTL", 23, 6 , 1},
-		{ "MTUTimeout", 24, 4 , 1},
-		{ "MTUPlateau", 25, 2 , 1},
-		{ "MTUInterface", 26, 5 , 1},
-		{ "MTUSubnet", 27, 7 , 1},
-		{ "BroadcastAddress", 28, 3 , 1},
-		{ "MaskDiscovery", 29, 7 , 1},
-		{ "MaskSupplier", 30, 7 , 1},
-		{ "RouterDiscovery", 31, 7 , 1},
-		{ "RouterRequest", 32, 3 , 1},
-		{ "StaticRoute", 33, 8 , 1},
-		{ "Trailers", 34, 7 , 1},
-		{ "ARPTimeout", 35, 4 , 1},
-		{ "Ethernet", 36, 7 , 1},
-		{ "DefaultTCPTTL", 37, 6 , 1},
-		{ "KeepaliveTime", 38, 4 , 1},
-		{ "KeepaliveData", 39, 7 , 1},
-		{ "NISDomain", 40, 1 , 1},
-		{ "NISServers", 41, 3 , 1},
-		{ "NTPServers", 42, 3 , 1},
-		{ "VendorSpecificInf", 43, 2 , 0},
-		{ "NETBIOSNameSrv", 44, 3 , 1},
-		{ "NETBIOSDistSrv", 45, 3 , 1},
-		{ "NETBIOSNodeType", 46, 6 , 1},
-		{ "NETBIOSScope", 47, 1 , 1},
-		{ "XWindowFont", 48, 1 , 1},
-		{ "XWindowManager", 49, 3 , 1},
+		{ "BootFileSize", 13, 5, 1},
+		{ "MeritDumpFile", 14, 1, 1},
+		{ "DomainName", 15, 1, 1},
+		{ "SwapServer", 16, 3, 1},
+		{ "RootPath", 17, 1, 1},
+		{ "ExtensionFile", 18, 1, 1},
+		{ "ForwardOn/Off", 19, 7, 1},
+		{ "SrcRteOn/Off", 20, 7, 1},
+		{ "PolicyFilter", 21, 8, 1},
+		{ "MaxDGAssembly", 22, 5, 1},
+		{ "DefaultIPTTL", 23, 6, 1},
+		{ "MTUTimeout", 24, 4, 1},
+		{ "MTUPlateau", 25, 2, 1},
+		{ "MTUInterface", 26, 5, 1},
+		{ "MTUSubnet", 27, 7, 1},
+		{ "BroadcastAddress", 28, 3, 1},
+		{ "MaskDiscovery", 29, 7, 1},
+		{ "MaskSupplier", 30, 7, 1},
+		{ "RouterDiscovery", 31, 7, 1},
+		{ "RouterRequest", 32, 3, 1},
+		{ "StaticRoute", 33, 8, 1},
+		{ "Trailers", 34, 7, 1},
+		{ "ARPTimeout", 35, 4, 1},
+		{ "Ethernet", 36, 7, 1},
+		{ "DefaultTCPTTL", 37, 6, 1},
+		{ "KeepaliveTime", 38, 4, 1},
+		{ "KeepaliveData", 39, 7, 1},
+		{ "NISDomain", 40, 1, 1},
+		{ "NISServers", 41, 3, 1},
+		{ "NTPServers", 42, 3, 1},
+		{ "VendorSpecificInf", 43, 2, 0},
+		{ "NETBIOSNameSrv", 44, 3, 1},
+		{ "NETBIOSDistSrv", 45, 3, 1},
+		{ "NETBIOSNodeType", 46, 6, 1},
+		{ "NETBIOSScope", 47, 1, 1},
+		{ "XWindowFont", 48, 1, 1},
+		{ "XWindowManager", 49, 3, 1},
 		{ "AddressRequest", 50, 3, 0},
-		{ "AddressTime", 51, 4 , 1},
+		{ "AddressTime", 51, 4, 1},
 		{ "OverLoad", 52, 7, 0},
 		{ "DHCPMsgType", 53, 6, 0},
 		{ "DHCPServerId", 54, 3, 0},
-		{ "ParameterList", 55, 2 , 0},
+		{ "ParameterList", 55, 2, 0},
 		{ "DHCPMessage", 56, 1, 0},
 		{ "DHCPMaxMsgSize", 57, 5, 0},
-		{ "RenewalTime", 58, 4 , 1},
-		{ "RebindingTime", 59, 4 , 1},
+		{ "RenewalTime", 58, 4, 1},
+		{ "RebindingTime", 59, 4, 1},
 		{ "ClassId", 60, 1, 0},
 		{ "ClientId", 61, 2, 0},
-		{ "NetWareIPDomain", 62, 1 , 1},
-		{ "NetWareIPOption", 63, 2 , 1},
-		{ "NISDomainName", 64, 1 , 1},
-		{ "NISServerAddr", 65, 3 , 1},
-		{ "TFTPServerName", 66, 1 , 1},
-		{ "BootFileOption", 67, 1 , 1},
-		{ "HomeAgentAddrs", 68, 3 , 1},
-		{ "SMTPServer", 69, 3 , 1},
-		{ "POP3Server", 70, 3 , 1},
-		{ "NNTPServer", 71, 3 , 1},
-		{ "WWWServer", 72, 3 , 1},
-		{ "FingerServer", 73, 3 , 1},
-		{ "IRCServer", 74, 3 , 1},
-		{ "StreetTalkServer", 75, 3 , 1},
-		{ "STDAServer", 76, 3 , 1},
+		{ "NetWareIPDomain", 62, 1, 1},
+		{ "NetWareIPOption", 63, 2, 1},
+		{ "NISDomainName", 64, 1, 1},
+		{ "NISServerAddr", 65, 3, 1},
+		{ "TFTPServerName", 66, 1, 1},
+		{ "BootFileOption", 67, 1, 1},
+		{ "HomeAgentAddrs", 68, 3, 1},
+		{ "SMTPServer", 69, 3, 1},
+		{ "POP3Server", 70, 3, 1},
+		{ "NNTPServer", 71, 3, 1},
+		{ "WWWServer", 72, 3, 1},
+		{ "FingerServer", 73, 3, 1},
+		{ "IRCServer", 74, 3, 1},
+		{ "StreetTalkServer", 75, 3, 1},
+		{ "STDAServer", 76, 3, 1},
 		{ "UserClass", 77, 1, 0},
-		{ "DirectoryAgent", 78, 1 , 1},
-		{ "ServiceScope", 79, 1 , 1},
+		{ "DirectoryAgent", 78, 1, 1},
+		{ "ServiceScope", 79, 1, 1},
 		{ "RapidCommit", 80, 2, 0},
 		{ "ClientFQDN", 81, 2, 0},
 		{ "RelayAgentInformation", 82, 2, 0},
-		{ "iSNS", 83, 1 , 1},
-		{ "NDSServers", 85, 3 , 1},
-		{ "NDSTreeName", 86, 1 , 1},
-		{ "NDSContext", 87, 1 , 1},
-		{ "LDAP", 95, 1 , 1},
-		{ "PCode", 100, 1 , 1},
-		{ "TCode", 101, 1 , 1},
-		{ "NetInfoAddress", 112, 3 , 1},
-		{ "NetInfoTag", 113, 1 , 1},
-		{ "URL", 114, 1 , 1},
-		{ "AutoConfig", 116, 7 , 1},
-		{ "NameServiceSearch", 117, 2 , 1},
-		{ "SubnetSelectionOption", 118, 3 , 1},
-		{ "DomainSearch", 119, 1 , 1},
-		{ "SIPServersDHCPOption", 120, 1 , 1},
-		{ "121", 121, 1 , 1},
-		{ "CCC", 122, 1 , 1},
-		{ "TFTPServerIPaddress", 128, 3 , 1},
-		{ "CallServerIPaddress", 129, 3 , 1},
-		{ "DiscriminationString", 130, 1 , 1},
-		{ "RemoteStatisticsServerIPAddress", 131, 3 , 1},
-		{ "HTTPProxyPhone", 135, 3 , 1},
-		{ "OPTION_CAPWAP_AC_V4", 138, 1 , 1},
-		{ "OPTIONIPv4_AddressMoS", 139, 1 , 1},
-		{ "OPTIONIPv4_FQDNMoS", 140, 1 , 1},
-		{ "SIPUAServiceDomains", 141, 1 , 1},
-		{ "OPTIONIPv4_AddressANDSF", 142, 1 , 1},
-		{ "IPTelephone", 176, 1 , 1},
-		{ "ConfigurationFile", 209, 1 , 1},
-		{ "PathPrefix", 210, 1 , 1},
-		{ "RebootTime", 211, 4 , 1},
-		{ "OPTION_6RD", 212, 1 , 1},
-		{ "OPTION_V4_ACCESS_DOMAIN", 213, 1 , 1},
-		{ "BootFileName", 253, 1 , 1},
-		{ "NextServer", 254, 3, 1},
-	};
+		{ "iSNS", 83, 1, 1},
+		{ "NDSServers", 85, 3, 1},
+		{ "NDSTreeName", 86, 1, 1},
+		{ "NDSContext", 87, 1, 1},
+		{ "LDAP", 95, 1, 1},
+		{ "PCode", 100, 1, 1},
+		{ "TCode", 101, 1, 1},
+		{ "NetInfoAddress", 112, 3, 1},
+		{ "NetInfoTag", 113, 1, 1},
+		{ "URL", 114, 1, 1},
+		{ "AutoConfig", 116, 7, 1},
+		{ "NameServiceSearch", 117, 2, 1},
+		{ "SubnetSelectionOption", 118, 3, 1},
+		{ "DomainSearch", 119, 1, 1},
+		{ "SIPServersDHCPOption", 120, 1, 1},
+//		{ "121", 121, 1, 1},
+		{ "CCC", 122, 1, 1},
+		{ "TFTPServerIPaddress", 128, 3, 1},
+		{ "CallServerIPaddress", 129, 3, 1},
+		{ "DiscriminationString", 130, 1, 1},
+		{ "RemoteStatisticsServerIPAddress", 131, 3, 1},
+		{ "HTTPProxyPhone", 135, 3, 1},
+		{ "OPTION_CAPWAP_AC_V4", 138, 1, 1},
+		{ "OPTIONIPv4_AddressMoS", 139, 1, 1},
+		{ "OPTIONIPv4_FQDNMoS", 140, 1, 1},
+		{ "SIPUAServiceDomains", 141, 1, 1},
+		{ "OPTIONIPv4_AddressANDSF", 142, 1, 1},
+		{ "IPTelephone", 176, 1, 1},
+		{ "ConfigurationFile", 209, 1, 1},
+		{ "PathPrefix", 210, 1, 1},
+		{ "RebootTime", 211, 4, 1},
+		{ "OPTION_6RD", 212, 1, 1},
+		{ "OPTION_V4_ACCESS_DOMAIN", 213, 1, 1},
+		{ "BootFileName", 253, 1, 1},
+        { "NextServer", 254, 3, 1},
+    };
 
 void WINAPI ServiceControlHandler(DWORD controlCode)
 {
@@ -280,9 +266,10 @@ void WINAPI ServiceMain(DWORD /*argc*/, TCHAR* /*argv*/[])
 		{
 			if (verbatim || cfig.dnsLogLevel || cfig.dhcpLogLevel)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Thread Creation Failed");
+				sprintf(logBuff, "Thread Creation Failed");
 				logMess(logBuff, 1);
 			}
+			Sleep(1000);
 			exit(-1);
 		}
 
@@ -303,7 +290,7 @@ void WINAPI ServiceMain(DWORD /*argc*/, TCHAR* /*argv*/[])
 				continue;
 			}
 
-			if (!network.dhcpConn[0].ready && !network.dnsUdpConn[0].ready)
+			if ((dhcpService && !network.dhcpConn[0].ready) || (dnsService && !network.dnsUdpConn[0].ready))
 			{
 				Sleep(1000);
 				network.busy = false;
@@ -340,7 +327,7 @@ void WINAPI ServiceMain(DWORD /*argc*/, TCHAR* /*argv*/[])
 					FD_SET(network.forwConn.sock, &readfds);
 			}
 
-			if (0 < select((int)(network.maxFD), &readfds, NULL, NULL, &tv))
+			if (select(network.maxFD, &readfds, NULL, NULL, &tv))
 			{
 				t = time(NULL);
 
@@ -357,8 +344,7 @@ void WINAPI ServiceMain(DWORD /*argc*/, TCHAR* /*argv*/[])
 
 							if (req->sock == INVALID_SOCKET)
 							{
-								errno = WSAGetLastError();
-								sprintf_s(logBuff, sizeof(logBuff), "Accept Failed, WSAError %u", errno);
+								sprintf(logBuff, "Accept Failed, Error=%u\n", WSAGetLastError());
 								logDHCPMess(logBuff, 1);
 								free(req);
 							}
@@ -367,33 +353,32 @@ void WINAPI ServiceMain(DWORD /*argc*/, TCHAR* /*argv*/[])
 						}
 						else
 						{
-							sprintf_s(logBuff, sizeof(logBuff), "Memory Error");
+							sprintf(logBuff, "Memory Error");
 							logDHCPMess(logBuff, 1);
 						}
+					}
+
+					for (int i = 0; i < MAX_SERVERS && network.dhcpConn[i].ready; i++)
+					{
+						if (FD_ISSET(network.dhcpConn[i].sock, &readfds) && gdmess(&dhcpr, i) && sdmess(&dhcpr))
+							alad(&dhcpr);
 					}
 
 					if (cfig.dhcpReplConn.ready && FD_ISSET(cfig.dhcpReplConn.sock, &readfds))
 					{
 						errno = 0;
 						dhcpr.sockLen = sizeof(dhcpr.remote);
-
 						dhcpr.bytes = recvfrom(cfig.dhcpReplConn.sock,
-							dhcpr.raw,
-							sizeof(dhcpr.raw),
-							0,
-							(sockaddr*)&dhcpr.remote,
-							&dhcpr.sockLen);
+											   dhcpr.raw,
+											   sizeof(dhcpr.raw),
+											   0,
+											   (sockaddr*)&dhcpr.remote,
+											   &dhcpr.sockLen);
 
-						if (dhcpr.bytes == SOCKET_ERROR || dhcpr.bytes == 0)
-						{
+						errno = WSAGetLastError();
+
+						if (errno || dhcpr.bytes <= 0)
 							cfig.dhcpRepl = 0;
-						}
-					}
-
-					for (int i = 0; i < MAX_SERVERS && network.dhcpConn[i].ready; i++)
-					{
-						if (FD_ISSET(network.dhcpConn[i].sock, &readfds) && gDHCPMessage(&dhcpr, i) && sDHCPMessage(&dhcpr))
-							alad(&dhcpr);
 					}
 				}
 
@@ -403,7 +388,7 @@ void WINAPI ServiceMain(DWORD /*argc*/, TCHAR* /*argv*/[])
 					{
 						if (FD_ISSET(network.dnsUdpConn[i].sock, &readfds))
 						{
-							if (gDNSMessage(&dnsr, i))
+							if (gdnmess(&dnsr, i))
 							{
 								if (scanloc(&dnsr))
 								{
@@ -412,13 +397,14 @@ void WINAPI ServiceMain(DWORD /*argc*/, TCHAR* /*argv*/[])
 										if (verbatim || cfig.dnsLogLevel >= 2)
 										{
 											if (dnsr.dnsType == DNS_TYPE_SOA)
-												sprintf_s(logBuff, sizeof(logBuff), "SOA Sent for zone %s", dnsr.query);
+												sprintf(logBuff, "SOA Sent for zone %s", dnsr.query);
 											else if (dnsr.dnsType == DNS_TYPE_NS)
-												sprintf_s(logBuff, sizeof(logBuff), "NS Sent for zone %s", dnsr.query);
+												sprintf(logBuff, "NS Sent for zone %s", dnsr.query);
 											else if (dnsr.cType == CTYPE_CACHED)
-												sprintf_s(logBuff, sizeof(logBuff), "%s resolved from Cache to %s", strquery(&dnsr), getResult(&dnsr));
+												sprintf(logBuff, "%s resolved from Cache to %s", strquery(&dnsr), getResult(&dnsr));
+												//sprintf(logBuff, "%s resolved from Cache to %s (%u)", strquery(&dnsr), getResult(&dnsr), dnsAge[currentInd].size());
 											else
-												sprintf_s(logBuff, sizeof(logBuff), "%s resolved Locally to %s", strquery(&dnsr), getResult(&dnsr));
+												sprintf(logBuff, "%s resolved Locally to %s", strquery(&dnsr), getResult(&dnsr));
 
 											logDNSMess(&dnsr, logBuff, 2);
 										}
@@ -429,13 +415,13 @@ void WINAPI ServiceMain(DWORD /*argc*/, TCHAR* /*argv*/[])
 
 										if (verbatim || cfig.dnsLogLevel >= 2)
 										{
-											sprintf_s(logBuff, sizeof(logBuff), "%s not found", strquery(&dnsr));
+											sprintf(logBuff, "%s not found", strquery(&dnsr));
 											logDNSMess(&dnsr, logBuff, 2);
 										}
 									}
-									sDNSMessage(&dnsr);
+									sdnmess(&dnsr);
 								}
-								else if (!fDNSMessage(&dnsr))
+								else if (!fdnmess(&dnsr))
 								{
 									if (!dnsr.dnsp->header.ancount && (dnsr.dnsp->header.rcode == RCODE_NOERROR || dnsr.dnsp->header.rcode == RCODE_NAMEERROR))
 									{
@@ -443,15 +429,15 @@ void WINAPI ServiceMain(DWORD /*argc*/, TCHAR* /*argv*/[])
 
 										if (verbatim || cfig.dnsLogLevel >= 2)
 										{
-											sprintf_s(logBuff, sizeof(logBuff), "%s not found", strquery(&dnsr));
+											sprintf(logBuff, "%s not found", strquery(&dnsr));
 											logDNSMess(&dnsr, logBuff, 2);
 										}
 									}
-									sDNSMessage(&dnsr);
+									sdnmess(&dnsr);
 								}
 							}
 							else if (dnsr.dnsp)
-								sDNSMessage(&dnsr);
+								sdnmess(&dnsr);
 						}
 					}
 
@@ -463,13 +449,13 @@ void WINAPI ServiceMain(DWORD /*argc*/, TCHAR* /*argv*/[])
 							dnsr.sockLen = sizeof(dnsr.remote);
 							errno = 0;
 							dnsr.sock = accept(network.dnsTcpConn[i].sock, (sockaddr*)&dnsr.remote, &dnsr.sockLen);
+							errno = WSAGetLastError();
 
-							if (dnsr.sock == INVALID_SOCKET)
+							if (dnsr.sock == INVALID_SOCKET || errno)
 							{
 								if (verbatim || cfig.dnsLogLevel)
 								{
-									errno = WSAGetLastError();
-									sprintf_s(logBuff, sizeof(logBuff), "Accept Failed, WSAError=%u", errno);
+									sprintf(logBuff, "Accept Failed, WSAError=%d", errno);
 									logDNSMess(logBuff, 1);
 								}
 							}
@@ -480,9 +466,9 @@ void WINAPI ServiceMain(DWORD /*argc*/, TCHAR* /*argv*/[])
 
 					if (network.forwConn.ready && FD_ISSET(network.forwConn.sock, &readfds))
 					{
-						if (frDNSMessage(&dnsr))
+						if (frdnmess(&dnsr))
 						{
-							sDNSMessage(&dnsr);
+							sdnmess(&dnsr);
 
 							if (verbatim || cfig.dnsLogLevel >= 2)
 							{
@@ -491,24 +477,24 @@ void WINAPI ServiceMain(DWORD /*argc*/, TCHAR* /*argv*/[])
 									if (dnsr.dnsp->header.ancount)
 									{
 										if (getResult(&dnsr))
-											sprintf_s(logBuff, sizeof(logBuff), "%s resolved from Forwarding Server as %s", strquery(&dnsr), dnsr.tempname);
+											sprintf(logBuff, "%s resolved from Forwarding Server as %s", strquery(&dnsr), dnsr.tempname);
 										else
-											sprintf_s(logBuff, sizeof(logBuff), "%s resolved from Forwarding Server", strquery(&dnsr));
+											sprintf(logBuff, "%s resolved from Forwarding Server", strquery(&dnsr));
 									}
 									else
-										sprintf_s(logBuff, sizeof(logBuff), "%s not found by Forwarding Server", strquery(&dnsr));
+										sprintf(logBuff, "%s not found by Forwarding Server", strquery(&dnsr));
 								}
 								else
 								{
 									if (dnsr.dnsp->header.ancount)
 									{
 										if (getResult(&dnsr))
-											sprintf_s(logBuff, sizeof(logBuff), "%s resolved from Conditional Forwarder as %s", strquery(&dnsr), dnsr.tempname);
+											sprintf(logBuff, "%s resolved from Conditional Forwarder as %s", strquery(&dnsr), dnsr.tempname);
 										else
-											sprintf_s(logBuff, sizeof(logBuff), "%s resolved from Conditional Forwarder", strquery(&dnsr));
+											sprintf(logBuff, "%s resolved from Conditional Forwarder", strquery(&dnsr));
 									}
 									else
-										sprintf_s(logBuff, sizeof(logBuff), "%s not found by Conditional Forwarder", strquery(&dnsr));
+										sprintf(logBuff, "%s not found by Conditional Forwarder", strquery(&dnsr));
 								}
 
 								logDNSMess(&dnsr, logBuff, 2);
@@ -524,7 +510,7 @@ void WINAPI ServiceMain(DWORD /*argc*/, TCHAR* /*argv*/[])
 			{
 				currentInd = magin.currentInd;
 				magin.done = false;
-				//sprintf_s(logBuff, sizeof(logBuff), "New Index=%u", currentInd);
+				//sprintf(logBuff, "New Index=%u", currentInd);
 				//logMess(logBuff, 2);
 			}
 			else
@@ -536,14 +522,14 @@ void WINAPI ServiceMain(DWORD /*argc*/, TCHAR* /*argv*/[])
 		//serviceStatus.dwCheckPoint = 2;
 		//serviceStatus.dwWaitHint = 1000;
 		SetServiceStatus(serviceStatusHandle, &serviceStatus);
-		sprintf_s(logBuff, sizeof(logBuff), "Closing Network Connections...");
+		sprintf(logBuff, "Closing Network Connections...");
 		logMess(logBuff, 1);
 		closeConn();
 
-		if (cfig.dhcpReplConn.ready)
-			closesocket(cfig.dhcpReplConn.sock);
+        if (cfig.dhcpReplConn.ready)
+            closesocket(cfig.dhcpReplConn.sock);
 
-		sprintf_s(logBuff, sizeof(logBuff), "Dual Server Stopped !\n");
+		sprintf(logBuff, "Dual Server Stopped !\n");
 		logMess(logBuff, 1);
 
 		Sleep(2000);
@@ -561,87 +547,87 @@ void WINAPI ServiceMain(DWORD /*argc*/, TCHAR* /*argv*/[])
 
 void closeConn()
 {
-	if (dhcpService)
-	{
+    if (dhcpService)
+    {
 		if (network.httpConn.ready)
 			closesocket(network.httpConn.sock);
 
-		for (int i = 0; i < MAX_SERVERS && network.dhcpConn[i].loaded; i++)
-			if (network.dhcpConn[i].ready)
-				closesocket(network.dhcpConn[i].sock);
-	}
+        for (int i = 0; i < MAX_SERVERS && network.dhcpConn[i].loaded; i++)
+        	if (network.dhcpConn[i].ready)
+            	closesocket(network.dhcpConn[i].sock);
+    }
 
-	if (dnsService)
-	{
-		for (int i = 0; i < MAX_SERVERS && network.dnsUdpConn[i].loaded; i++)
-			if (network.dnsUdpConn[i].ready)
-				closesocket(network.dnsUdpConn[i].sock);
+    if (dnsService)
+    {
+        for (int i = 0; i < MAX_SERVERS && network.dnsUdpConn[i].loaded; i++)
+        	if (network.dnsUdpConn[i].ready)
+           		closesocket(network.dnsUdpConn[i].sock);
 
-		for (int i = 0; i < MAX_SERVERS && network.dnsTcpConn[i].loaded; i++)
-			if (network.dnsTcpConn[i].ready)
-				closesocket(network.dnsTcpConn[i].sock);
+        for (int i = 0; i < MAX_SERVERS && network.dnsTcpConn[i].loaded; i++)
+        	if (network.dnsTcpConn[i].ready)
+            	closesocket(network.dnsTcpConn[i].sock);
 
-		if (network.forwConn.ready)
-			closesocket(network.forwConn.sock);
-	}
+        if (network.forwConn.ready)
+        	closesocket(network.forwConn.sock);
+    }
 }
 
 /*
 void closeConn()
 {
-	if (dhcpService)
-	{
+    if (dhcpService)
+    {
 		if (network.httpConn.ready)
 		{
 			closesocket(network.httpConn.sock);
-			sprintf_s(logBuff, sizeof(logBuff), "httpConn %s:%u closed", IP2String(ipbuff, network.httpConn.server), network.httpConn.port);
+			sprintf(logBuff, "httpConn %s:%u closed", IP2String(ipbuff, network.httpConn.server), network.httpConn.port);
 			logMess(logBuff, 1);
 		}
 
-		for (int i = 0; i < MAX_SERVERS && network.dhcpConn[i].loaded; i++)
-			if (network.dhcpConn[i].ready)
-			{
-				closesocket(network.dhcpConn[i].sock);
-				sprintf_s(logBuff, sizeof(logBuff), "dhcpConn[%u] %s:%u closed", i, IP2String(ipbuff, network.dhcpConn[i].server), network.dhcpConn[i].port);
+        for (int i = 0; i < MAX_SERVERS && network.dhcpConn[i].loaded; i++)
+        	if (network.dhcpConn[i].ready)
+        	{
+            	closesocket(network.dhcpConn[i].sock);
+				sprintf(logBuff, "dhcpConn[%u] %s:%u closed", i, IP2String(ipbuff, network.dhcpConn[i].server), network.dhcpConn[i].port);
 				logMess(logBuff, 1);
 			}
-	}
+    }
 
-	if (dnsService)
-	{
-		for (int i = 0; i < MAX_SERVERS && network.dnsUdpConn[i].loaded; i++)
-			if (network.dnsUdpConn[i].ready)
-			{
-				closesocket(network.dnsUdpConn[i].sock);
-				sprintf_s(logBuff, sizeof(logBuff), "dnsUdpConn %s:%u closed", IP2String(ipbuff, network.dnsUdpConn[i].server), network.dnsUdpConn[i].port);
-				logMess(logBuff, 1);
-			}
-
-		for (int i = 0; i < MAX_SERVERS && network.dnsTcpConn[i].loaded; i++)
-			if (network.dnsTcpConn[i].ready)
-			{
-				closesocket(network.dnsTcpConn[i].sock);
-				sprintf_s(logBuff, sizeof(logBuff), "dnsTcpConn %s:%u closed", IP2String(ipbuff, network.dnsTcpConn[i].server), network.dnsTcpConn[i].port);
+    if (dnsService)
+    {
+        for (int i = 0; i < MAX_SERVERS && network.dnsUdpConn[i].loaded; i++)
+        	if (network.dnsUdpConn[i].ready)
+        	{
+           		closesocket(network.dnsUdpConn[i].sock);
+				sprintf(logBuff, "dnsUdpConn %s:%u closed", IP2String(ipbuff, network.dnsUdpConn[i].server), network.dnsUdpConn[i].port);
 				logMess(logBuff, 1);
 			}
 
-		if (network.forwConn.ready)
-		{
-			closesocket(network.forwConn.sock);
-			sprintf_s(logBuff, sizeof(logBuff), "forwConn %s:%u closed", IP2String(ipbuff, network.forwConn.server), network.forwConn.port);
+        for (int i = 0; i < MAX_SERVERS && network.dnsTcpConn[i].loaded; i++)
+        	if (network.dnsTcpConn[i].ready)
+        	{
+            	closesocket(network.dnsTcpConn[i].sock);
+				sprintf(logBuff, "dnsTcpConn %s:%u closed", IP2String(ipbuff, network.dnsTcpConn[i].server), network.dnsTcpConn[i].port);
+				logMess(logBuff, 1);
+			}
+
+        if (network.forwConn.ready)
+        {
+        	closesocket(network.forwConn.sock);
+			sprintf(logBuff, "forwConn %s:%u closed", IP2String(ipbuff, network.forwConn.server), network.forwConn.port);
 			logMess(logBuff, 1);
 		}
-	}
+    }
 }
 */
 
 void runService()
 {
 	SERVICE_TABLE_ENTRY serviceTable[] =
-		{
-			{serviceName, ServiceMain},
-			{0, 0}
-		};
+	    {
+	        {serviceName, ServiceMain},
+	        {0, 0}
+	    };
 
 	StartServiceCtrlDispatcher(serviceTable);
 }
@@ -752,32 +738,13 @@ void uninstallService()
 	}
 }
 
-#ifdef USE_RAYGUN
-typedef void(__cdecl *raygunSetup)(const char*, const char*);
-#endif
-
 int main(int argc, TCHAR* argv[])
 {
-#ifdef USE_RAYGUN
-	HINSTANCE hGetProcIDDLL = LoadLibrary("raygun4cpp.dll");
+	OSVERSIONINFO osvi;
+	osvi.dwOSVersionInfoSize = sizeof(osvi);
+	bool result = GetVersionEx(&osvi);
 
-	if (!hGetProcIDDLL) {
-		std::cout << "could not load the raygun library : " << GetLastError() << std::endl;
-	}
-	else
-	{
-		raygunSetup funci = (raygunSetup)GetProcAddress(hGetProcIDDLL, "startVectoredHandler");
-		if (!funci) {
-			std::cout << "could not locate the function : " << GetLastError() << std::endl;
-		}
-		else
-		{
-			funci(sVersionNumber, RAYGUN_KEY);
-		}
-	}
-#endif
-
-	if (IsWindowsXPOrGreater())
+	if (result && osvi.dwPlatformId >= VER_PLATFORM_WIN32_NT)
 	{
 		if (argc > 1 && lstrcmpi(argv[1], TEXT("-i")) == 0)
 		{
@@ -802,65 +769,6 @@ int main(int argc, TCHAR* argv[])
 					CloseServiceHandle(service);
 				}
 				CloseServiceHandle(serviceControlManager);
-			}
-
-			if (argc > 2)
-			{
-				int lastArg = 2;
-				while (lastArg < argc)
-				{
-					if (argc > lastArg + 1 && lstrcmpi(argv[lastArg], TEXT("-i")) == 0)
-					{
-						char tmpIniPath[1024];
-						int lastPos = 0;
-						int i = lastArg + 1;
-						for (; i < argc; i++)
-						{
-							if (argv[i][0] == '-') break;
-							if (lastPos>0) tmpIniPath[lastPos++] = ' ';
-							strcpy_s(tmpIniPath + lastPos,sizeof(tmpIniPath)-lastPos, argv[i]);
-							lastPos += (int)strlen(argv[i]);
-						}
-						lastArg = i;
-						tmpIniPath[lastPos] = '\0';
-						printf("Using ini file at %s\n", tmpIniPath);
-						strcpy_s(iniFile, sizeof(iniFile), tmpIniPath);
-					}
-					else if (argc > lastArg + 1 && lstrcmpi(argv[lastArg], TEXT("-s")) == 0)
-					{
-						char tmpIniPath[1024];
-						int lastPos = 0;
-						int i = lastArg + 1;
-						for (; i < argc; i++)
-						{
-							if (argv[i][0] == '-') break;
-							if (lastPos>0) tmpIniPath[lastPos++] = ' ';
-							strcpy_s(tmpIniPath + lastPos, sizeof(tmpIniPath) - lastPos, argv[i]);
-							lastPos += (int)strlen(argv[i]);
-						}
-						lastArg = i;
-						tmpIniPath[lastPos] = '\0';
-						printf("Using state file at %s\n", tmpIniPath);
-						strcpy_s(leaFile, sizeof(leaFile), tmpIniPath);
-					}
-					else if (argc > lastArg + 1 && lstrcmpi(argv[lastArg], TEXT("-l")) == 0)
-					{
-						char tmpIniPath[1024];
-						int lastPos = 0;
-						int i = lastArg + 1;
-						for (; i < argc; i++)
-						{
-							if (argv[i][0] == '-') break;
-							if (lastPos>0) tmpIniPath[lastPos++] = ' ';
-							strcpy_s(tmpIniPath + lastPos, sizeof(tmpIniPath) - lastPos, argv[i]);
-							lastPos += (int)strlen(argv[i]);
-						}
-						lastArg = i;
-						tmpIniPath[lastPos] = '\0';
-						printf("Using log path at %s\n", tmpIniPath);
-						strcpy_s(logPath, sizeof(logPath), tmpIniPath);
-					}
-				}
 			}
 
 			if (serviceStopped)
@@ -897,9 +805,11 @@ void runProg()
 	{
 		if (verbatim || cfig.dnsLogLevel || cfig.dhcpLogLevel)
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "Thread Creation Failed");
+			sprintf(logBuff, "Thread Creation Failed");
 			logMess(logBuff, 1);
 		}
+
+		Sleep(1000);
 		exit(-1);
 	}
 
@@ -917,7 +827,7 @@ void runProg()
 			continue;
 		}
 
-		if (!network.dhcpConn[0].ready && !network.dnsUdpConn[0].ready)
+		if ((dhcpService && !network.dhcpConn[0].ready) || (dnsService && !network.dnsUdpConn[0].ready))
 		{
 			Sleep(1000);
 			network.busy = false;
@@ -950,7 +860,7 @@ void runProg()
 				FD_SET(network.forwConn.sock, &readfds);
 		}
 
-		if (0 < select((int)(network.maxFD), &readfds, NULL, NULL, &tv))
+		if (select(network.maxFD, &readfds, NULL, NULL, &tv))
 		{
 			t = time(NULL);
 
@@ -967,8 +877,7 @@ void runProg()
 
 						if (req->sock == INVALID_SOCKET)
 						{
-							errno = WSAGetLastError();
-							sprintf_s(logBuff, sizeof(logBuff), "Accept Failed, WSAError %u", errno);
+							sprintf(logBuff, "Accept Failed, Error=%u\n", WSAGetLastError());
 							logDHCPMess(logBuff, 1);
 							free(req);
 						}
@@ -977,16 +886,21 @@ void runProg()
 					}
 					else
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "Memory Error");
+						sprintf(logBuff, "Memory Error");
 						logDHCPMess(logBuff, 1);
 					}
+				}
+
+				for (int i = 0; i < MAX_SERVERS && network.dhcpConn[i].ready; i++)
+				{
+					if (FD_ISSET(network.dhcpConn[i].sock, &readfds) && gdmess(&dhcpr, i) && sdmess(&dhcpr))
+						alad(&dhcpr);
 				}
 
 				if (cfig.dhcpReplConn.ready && FD_ISSET(cfig.dhcpReplConn.sock, &readfds))
 				{
 					errno = 0;
 					dhcpr.sockLen = sizeof(dhcpr.remote);
-
 					dhcpr.bytes = recvfrom(cfig.dhcpReplConn.sock,
 										   dhcpr.raw,
 										   sizeof(dhcpr.raw),
@@ -994,17 +908,10 @@ void runProg()
 										   (sockaddr*)&dhcpr.remote,
 										   &dhcpr.sockLen);
 
+					errno = WSAGetLastError();
 
-					if (dhcpr.bytes == SOCKET_ERROR || dhcpr.bytes == 0)
-					{
+					if (errno || dhcpr.bytes <= 0)
 						cfig.dhcpRepl = 0;
-					}
-				}
-
-				for (int i = 0; i < MAX_SERVERS && network.dhcpConn[i].ready; i++)
-				{
-					if (FD_ISSET(network.dhcpConn[i].sock, &readfds) && gDHCPMessage(&dhcpr, i) && sDHCPMessage(&dhcpr))
-						alad(&dhcpr);
 				}
 			}
 
@@ -1014,7 +921,7 @@ void runProg()
 				{
 					if (FD_ISSET(network.dnsUdpConn[i].sock, &readfds))
 					{
-						if (gDNSMessage(&dnsr, i))
+						if (gdnmess(&dnsr, i))
 						{
 							if (scanloc(&dnsr))
 							{
@@ -1023,13 +930,14 @@ void runProg()
 									if (verbatim || cfig.dnsLogLevel >= 2)
 									{
 										if (dnsr.dnsType == DNS_TYPE_SOA)
-											sprintf_s(logBuff, sizeof(logBuff), "SOA Sent for zone %s", dnsr.query);
+											sprintf(logBuff, "SOA Sent for zone %s", dnsr.query);
 										else if (dnsr.dnsType == DNS_TYPE_NS)
-											sprintf_s(logBuff, sizeof(logBuff), "NS Sent for zone %s", dnsr.query);
+											sprintf(logBuff, "NS Sent for zone %s", dnsr.query);
 										else if (dnsr.cType == CTYPE_CACHED)
-											sprintf_s(logBuff, sizeof(logBuff), "%s resolved from Cache to %s", strquery(&dnsr), getResult(&dnsr));
+											sprintf(logBuff, "%s resolved from Cache to %s", strquery(&dnsr), getResult(&dnsr));
+											//sprintf(logBuff, "%s resolved from Cache to %s (%u)", strquery(&dnsr), getResult(&dnsr), dnsAge[currentInd].size());
 										else
-											sprintf_s(logBuff, sizeof(logBuff), "%s resolved Locally to %s", strquery(&dnsr), getResult(&dnsr));
+											sprintf(logBuff, "%s resolved Locally to %s", strquery(&dnsr), getResult(&dnsr));
 
 										logDNSMess(&dnsr, logBuff, 2);
 									}
@@ -1040,18 +948,13 @@ void runProg()
 
 									if (verbatim || cfig.dnsLogLevel >= 2)
 									{
-										sprintf_s(logBuff, sizeof(logBuff), "%s not found", strquery(&dnsr));
+										sprintf(logBuff, "%s not found", strquery(&dnsr));
 										logDNSMess(&dnsr, logBuff, 2);
 									}
-									// check for adblock
-									if (dnsr.dnsType != DNS_TYPE_SOA && dnsr.dnsType != DNS_TYPE_NS && dnsr.cType != CTYPE_CACHED)
-									{
-										++adBlockCounter;
-									}
 								}
-								sDNSMessage(&dnsr);
+								sdnmess(&dnsr);
 							}
-							else if (!fDNSMessage(&dnsr))
+							else if (!fdnmess(&dnsr))
 							{
 								if (!dnsr.dnsp->header.ancount && (dnsr.dnsp->header.rcode == RCODE_NOERROR || dnsr.dnsp->header.rcode == RCODE_NAMEERROR))
 								{
@@ -1059,20 +962,15 @@ void runProg()
 
 									if (verbatim || cfig.dnsLogLevel >= 2)
 									{
-										sprintf_s(logBuff, sizeof(logBuff), "%s not found", strquery(&dnsr));
+										sprintf(logBuff, "%s not found", strquery(&dnsr));
 										logDNSMess(&dnsr, logBuff, 2);
 									}
-									// check for adblock
-									if (dnsr.dnsType != DNS_TYPE_SOA && dnsr.dnsType != DNS_TYPE_NS && dnsr.cType != CTYPE_CACHED)
-									{
-										++adBlockCounter;
-									}
 								}
-								sDNSMessage(&dnsr);
+								sdnmess(&dnsr);
 							}
 						}
 						else if (dnsr.dnsp)
-							sDNSMessage(&dnsr);
+							sdnmess(&dnsr);
 					}
 				}
 
@@ -1084,13 +982,13 @@ void runProg()
 						dnsr.sockLen = sizeof(dnsr.remote);
 						errno = 0;
 						dnsr.sock = accept(network.dnsTcpConn[i].sock, (sockaddr*)&dnsr.remote, &dnsr.sockLen);
+						errno = WSAGetLastError();
 
-						if (dnsr.sock == INVALID_SOCKET)
+						if (dnsr.sock == INVALID_SOCKET || errno)
 						{
 							if (verbatim || cfig.dnsLogLevel)
 							{
-								errno = WSAGetLastError();
-								sprintf_s(logBuff, sizeof(logBuff), "Accept Failed, WSAError=%u", errno);
+								sprintf(logBuff, "Accept Failed, WSAError=%d", errno);
 								logDNSMess(logBuff, 1);
 							}
 						}
@@ -1101,9 +999,9 @@ void runProg()
 
 				if (network.forwConn.ready && FD_ISSET(network.forwConn.sock, &readfds))
 				{
-					if (frDNSMessage(&dnsr))
+					if (frdnmess(&dnsr))
 					{
-						sDNSMessage(&dnsr);
+						sdnmess(&dnsr);
 
 						if (verbatim || cfig.dnsLogLevel >= 2)
 						{
@@ -1112,24 +1010,24 @@ void runProg()
 								if (dnsr.dnsp->header.ancount)
 								{
 									if (getResult(&dnsr))
-										sprintf_s(logBuff, sizeof(logBuff), "%s resolved from Forwarding Server as %s", strquery(&dnsr), dnsr.tempname);
+										sprintf(logBuff, "%s resolved from Forwarding Server as %s", strquery(&dnsr), dnsr.tempname);
 									else
-										sprintf_s(logBuff, sizeof(logBuff), "%s resolved from Forwarding Server", strquery(&dnsr));
+										sprintf(logBuff, "%s resolved from Forwarding Server", strquery(&dnsr));
 								}
 								else
-									sprintf_s(logBuff, sizeof(logBuff), "%s not found by Forwarding Server", strquery(&dnsr));
+									sprintf(logBuff, "%s not found by Forwarding Server", strquery(&dnsr));
 							}
 							else
 							{
 								if (dnsr.dnsp->header.ancount)
 								{
 									if (getResult(&dnsr))
-										sprintf_s(logBuff, sizeof(logBuff), "%s resolved from Conditional Forwarder as %s", strquery(&dnsr), dnsr.tempname);
+										sprintf(logBuff, "%s resolved from Conditional Forwarder as %s", strquery(&dnsr), dnsr.tempname);
 									else
-										sprintf_s(logBuff, sizeof(logBuff), "%s resolved from Conditional Forwarder", strquery(&dnsr));
+										sprintf(logBuff, "%s resolved from Conditional Forwarder", strquery(&dnsr));
 								}
 								else
-									sprintf_s(logBuff, sizeof(logBuff), "%s not found by Conditional Forwarder", strquery(&dnsr));
+									sprintf(logBuff, "%s not found by Conditional Forwarder", strquery(&dnsr));
 							}
 
 							logDNSMess(&dnsr, logBuff, 2);
@@ -1145,7 +1043,7 @@ void runProg()
 		{
 			currentInd = magin.currentInd;
 			magin.done = false;
-			//sprintf_s(logBuff, sizeof(logBuff), "New Index=%u", currentInd);
+			//sprintf(logBuff, "New Index=%u", currentInd);
 			//logMess(logBuff, 2);
 		}
 		else
@@ -1154,15 +1052,15 @@ void runProg()
 	while (kRunning);
 
 	kRunning = false;
-	sprintf_s(logBuff, sizeof(logBuff), "Closing Network Connections...");
-	logMess(logBuff, 1);
+    sprintf(logBuff, "Closing Network Connections...");
+    logMess(logBuff, 1);
 	closeConn();
 
 	if (cfig.dhcpReplConn.ready)
 		closesocket(cfig.dhcpReplConn.sock);
 
-	sprintf_s(logBuff, sizeof(logBuff), "Dual Server Stopped !\n");
-	logMess(logBuff, 1);
+    sprintf(logBuff, "Dual Server Stopped !\n");
+    logMess(logBuff, 1);
 
 	WSACleanup();
 }
@@ -1177,7 +1075,7 @@ bool chkQu(char *query)
 		char *dp = strchr(query, '.');
 		if (dp)
 		{
-			MYWORD size = (MYWORD)(dp - query);
+			MYWORD size = dp - query;
 			if (size >= 64)
 				return 0;
 			query += (size + 1);
@@ -1220,16 +1118,15 @@ MYWORD fQu(char *query, dnsPacket *mess, char *raw)
 		}
 		else
 		{
-			USHORT nameOffset = 0;
 			if (!goneout)
 				retvalue += 2;
 
 			goneout = true;
-			// 'size' if the offset to the real name
-			// Drop the high 2 bits (indicator of offset), and shift over 1 byte
-			nameOffset = (size << 8) & 0x3F00;
-			nameOffset += *xraw;
-			xraw = (BYTE*)mess + nameOffset;
+			size %= 128;
+			size %= 64;
+			size *= 256;
+			size += *xraw;
+			xraw = (MYBYTE*)mess + size;
 		}
 	}
 
@@ -1250,13 +1147,13 @@ MYWORD qLen(char *query)
 
 		if (dp != NULL)
 		{
-			int size = (int)(dp - query);
+			int size = dp - query;
 			query += (size + 1);
 			fullsize += (size + 1);
 		}
 		else
 		{
-			int size = (int)strlen(query);
+			int size = strlen(query);
 
 			if (size)
 				fullsize += (size + 1);
@@ -1268,7 +1165,7 @@ MYWORD qLen(char *query)
 	return fullsize;
 }
 
-MYWORD putQueryString(char *raw, char *query, int maxSize=-1)
+MYWORD pQu(char *raw, char *query)
 {
 	MYWORD fullsize = 1;
 	while (true)
@@ -1277,8 +1174,7 @@ MYWORD putQueryString(char *raw, char *query, int maxSize=-1)
 
 		if (i != NULL)
 		{
-			int size = (int)(i - query);
-			if (maxSize>-1 && fullsize + size > maxSize) break;
+			int size = i - query;
 			*raw = size;
 			raw++;
 			memcpy(raw, query, size);
@@ -1288,8 +1184,7 @@ MYWORD putQueryString(char *raw, char *query, int maxSize=-1)
 		}
 		else
 		{
-			int size = (int)strlen(query);
-			if (maxSize>-1 && fullsize + size > maxSize) break;
+			int size = strlen(query);
 			if (size)
 			{
 				*raw = size;
@@ -1319,28 +1214,25 @@ MYDWORD fIP(void *raw)
 	return(*((MYDWORD*)raw));
 }
 
-MYBYTE putUnsignedShort(void *raw, MYWORD data, int maxSize=-1)
+MYBYTE pUShort(void *raw, MYWORD data)
 {
-	if (maxSize>-1 && sizeof(unsigned short) > maxSize) return 0;
 	*((MYWORD*)raw) = htons(data);
 	return sizeof(MYWORD);
 }
 
-MYBYTE putUnsignedLong(void *raw, MYDWORD data, int maxSize = -1)
+MYBYTE pULong(void *raw, MYDWORD data)
 {
-	if (maxSize>-1 && sizeof(unsigned long) > maxSize) return 0;
 	*((MYDWORD*)raw) = htonl(data);
 	return sizeof(MYDWORD);
 }
 
-MYBYTE putIP(void *raw, MYDWORD data, int maxSize = -1)
+MYBYTE pIP(void *raw, MYDWORD data)
 {
-	if (maxSize > -1 && sizeof(MYDWORD) > maxSize) return 0;;
 	*((MYDWORD*)raw) = data;
 	return sizeof(MYDWORD);
 }
 
-void addRREmpty(dnsRequest *req)
+void addRREmpty(data5 *req)
 {
 	req->dnsp->header.ra = 0;
 	req->dnsp->header.at = 0;
@@ -1353,14 +1245,14 @@ void addRREmpty(dnsRequest *req)
 	req->dp = &req->dnsp->data;
 }
 
-void addRRError(dnsRequest *req, MYBYTE rcode)
+void addRRError(data5 *req, MYBYTE rcode)
 {
 	req->dnsp->header.qr = 1;
 	req->dp = req->raw + req->bytes;
 	req->dnsp->header.rcode = rcode;
 }
 
-void addRRNone(dnsRequest *req)
+void addRRNone(data5 *req)
 {
 	if (network.dns[0])
 		req->dnsp->header.ra = 1;
@@ -1376,21 +1268,19 @@ void addRRNone(dnsRequest *req)
 	req->dnsp->header.adcount = 0;
 }
 
-void addRRExt(dnsRequest *req)
+void addRRExt(data5 *req)
 {
 	char tempbuff[512];
-	char temp[2048];
 	//char logBuff[512];
-	//sprintf_s(logBuff, sizeof(logBuff), "%s=%s=%i\n", req->cname, req->query, req->bytes);
+	//sprintf(logBuff, "%s=%s=%i\n", req->cname, req->query, req->bytes);
 	//logMess(logBuff, 2);
 
-	if (!req) return;
 	if (strcasecmp(req->cname, req->query))
 	{
+		MYBYTE temp[2048];
 		memcpy(temp, req->raw, req->bytes);
 		dnsPacket *input = (dnsPacket*)temp;
 		req->dnsp = (dnsPacket*)req->raw;
-		if (!req->dnsp) return;
 
 		req->dnsp->header.aa = 0;
 		req->dnsp->header.at = 0;
@@ -1399,19 +1289,17 @@ void addRRExt(dnsRequest *req)
 
 		//manuplate the response
 		req->dp = &req->dnsp->data;
-		if (!req->dp) return;
-		req->dp += putQueryString(req->dp, req->query, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_TYPE_A, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putQueryString(req->dp, req->query, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_TYPE_CNAME, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, qLen(req->cname), sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
+		req->dp += pQu(req->dp, req->query);
+		req->dp += pUShort(req->dp, DNS_TYPE_A);
+		req->dp += pUShort(req->dp, DNS_CLASS_IN);
+		req->dp += pQu(req->dp, req->query);
+		req->dp += pUShort(req->dp, DNS_TYPE_CNAME);
+		req->dp += pUShort(req->dp, DNS_CLASS_IN);
+		req->dp += pULong(req->dp, cfig.lease);
+		req->dp += pUShort(req->dp, qLen(req->cname));
+		req->dp += pQu(req->dp, req->cname);
 
 		char *indp = &input->data;
-		if (!indp) return;
 
 		for (int i = 1; i <= ntohs(input->header.qdcount); i++)
 		{
@@ -1423,7 +1311,7 @@ void addRRExt(dnsRequest *req)
 		{
 			indp += fQu(tempbuff, input, indp);
 			MYWORD type = fUShort(indp);
-			req->dp += putQueryString(req->dp, tempbuff, sizeof(req->raw) - (req->dp - req->raw));
+			req->dp += pQu(req->dp, tempbuff);
 			memcpy(req->dp, indp, 8);
 			req->dp += 8;
 			indp += 8;
@@ -1436,13 +1324,13 @@ void addRRExt(dnsRequest *req)
 			switch (type)
 			{
 				case DNS_TYPE_A:
-					req->dp += putUnsignedShort(req->dp, zLen, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putIP(req->dp, fIP(indp), sizeof(req->raw) - (req->dp - req->raw));
+					req->dp += pUShort(req->dp, zLen);
+					req->dp += pIP(req->dp, fIP(indp));
 					break;
 				case DNS_TYPE_CNAME:
 					fQu(tempbuff, input, indp);
-					MYWORD dl = putQueryString(req->dp + 2, tempbuff, sizeof(req->raw) - (req->dp - req->raw) - 2);
-					req->dp += putUnsignedShort(req->dp, dl, sizeof(req->raw) - (req->dp - req->raw));
+					MYWORD dl = pQu(req->dp + 2, tempbuff);
+					req->dp += pUShort(req->dp, dl);
 					req->dp += dl;
 					break;
 			}
@@ -1458,10 +1346,10 @@ void addRRExt(dnsRequest *req)
 	}
 }
 
-void addRRCache(dnsRequest *req, data7 *cache)
+void addRRCache(data5 *req, data7 *cache)
 {
 	char tempbuff[512];
-	if (!req) return;
+
 	if (req->dnsType == DNS_TYPE_A)
 	{
 		//manuplate the response
@@ -1469,9 +1357,7 @@ void addRRCache(dnsRequest *req, data7 *cache)
 		dnsPacket *input = (dnsPacket*)cache->response;
 		char *indp = &input->data;
 		req->dnsp = (dnsPacket*)req->raw;
-		if (!req->dnsp) return;
 		req->dp = &req->dnsp->data;
-		if (!req->dp) return;
 
 		req->dnsp->header.aa = 0;
 		req->dnsp->header.at = 0;
@@ -1479,18 +1365,18 @@ void addRRCache(dnsRequest *req, data7 *cache)
 		req->dnsp->header.qdcount = htons(1);
 
 		req->dp = &req->dnsp->data;
-		req->dp += putQueryString(req->dp, req->query, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, req->dnsType, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, req->qclass, sizeof(req->raw) - (req->dp - req->raw));
+		req->dp += pQu(req->dp, req->query);
+		req->dp += pUShort(req->dp, req->dnsType);
+		req->dp += pUShort(req->dp, req->qclass);
 
 		if(strcasecmp(req->cname, req->query))
 		{
-			req->dp += putQueryString(req->dp, req->query, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, DNS_TYPE_CNAME, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, qLen(req->cname), sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
+			req->dp += pQu(req->dp, req->query);
+			req->dp += pUShort(req->dp, DNS_TYPE_CNAME);
+			req->dp += pUShort(req->dp, DNS_CLASS_IN);
+			req->dp += pULong(req->dp, cfig.lease);
+			req->dp += pUShort(req->dp, qLen(req->cname));
+			req->dp += pQu(req->dp, req->cname);
 			req->dnsp->header.ancount = htons(1);
 		}
 
@@ -1506,9 +1392,9 @@ void addRRCache(dnsRequest *req, data7 *cache)
 			MYWORD type = fUShort(indp);
 
 			if (!strcasecmp(tempbuff, req->query))
-				strcpy_s(tempbuff, sizeof(tempbuff), req->query);
+				strcpy(tempbuff, req->query);
 
-			req->dp += putQueryString(req->dp, tempbuff, sizeof(req->raw) - (req->dp - req->raw));
+			req->dp += pQu(req->dp, tempbuff);
 			memcpy(req->dp, indp, 8);
 			req->dp += 8;
 			indp += 8;
@@ -1521,13 +1407,13 @@ void addRRCache(dnsRequest *req, data7 *cache)
 			switch (type)
 			{
 				case DNS_TYPE_A:
-					req->dp += putUnsignedShort(req->dp, zLen, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putIP(req->dp, fIP(indp), sizeof(req->raw) - (req->dp - req->raw));
+					req->dp += pUShort(req->dp, zLen);
+					req->dp += pIP(req->dp, fIP(indp));
 					break;
 				case DNS_TYPE_CNAME:
 					fQu(tempbuff, input, indp);
-					MYWORD dl = putQueryString(req->dp + 2, tempbuff, sizeof(req->raw) - (req->dp - req->raw) - 2);
-					req->dp += putUnsignedShort(req->dp, dl, sizeof(req->raw) - (req->dp - req->raw));
+					MYWORD dl = pQu(req->dp + 2, tempbuff);
+					req->dp += pUShort(req->dp, dl);
 					req->dp += dl;
 					break;
 			}
@@ -1539,7 +1425,6 @@ void addRRCache(dnsRequest *req, data7 *cache)
 	else if (req->dnsType == DNS_TYPE_PTR || req->dnsType == DNS_TYPE_ANY || req->dnsType == DNS_TYPE_AAAA)
 	{
 		req->dnsp = (dnsPacket*)req->raw;
-		if (!req->dnsp) return;
 		MYWORD xid = req->dnsp->header.xid;
 		memcpy(req->raw, cache->response, cache->bytes);
 		req->dp = req->raw + cache->bytes;
@@ -1547,20 +1432,24 @@ void addRRCache(dnsRequest *req, data7 *cache)
 	}
 }
 
-void addRRA(dnsRequest *req)
+void addRRA(data5 *req)
 {
-	if (req->qType == QTYPE_A_BARE && req->cType != CTYPE_NONE)
-		sprintf_s(req->cname,sizeof(req->cname), "%s.%s", req->query, cfig.zone);
+	//char logBuff[512];
+	//sprintf(logBuff, "cType=%u,dnsType=%u,query=%s,cname=%s", req->cType, req->dnsType, req->query, req->cname);
+	//logMess(logBuff, 2);
+
+	//if (req->qType == QTYPE_A_BARE && req->cType != CTYPE_NONE)
+	//	sprintf(req->cname, "%s.%s", req->query, cfig.zone);
 
 	if (strcasecmp(req->query, req->cname))
 	{
 		req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
-		req->dp += putQueryString(req->dp, req->query, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_TYPE_CNAME, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, qLen(req->cname), sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
+		req->dp += pQu(req->dp, req->query);
+		req->dp += pUShort(req->dp, DNS_TYPE_CNAME);
+		req->dp += pUShort(req->dp, DNS_CLASS_IN);
+		req->dp += pULong(req->dp, cfig.lease);
+		req->dp += pUShort(req->dp, qLen(req->cname));
+		req->dp += pQu(req->dp, req->cname);
 	}
 
 	for (; req->iterBegin != dnsCache[currentInd].end(); req->iterBegin++)
@@ -1573,18 +1462,18 @@ void addRRA(dnsRequest *req)
 		if (cache->ip)
 		{
 			req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
-			req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, DNS_TYPE_A, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, 4, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putIP(req->dp, cache->ip, sizeof(req->raw) - (req->dp - req->raw));
+			req->dp += pQu(req->dp, req->cname);
+			req->dp += pUShort(req->dp, DNS_TYPE_A);
+			req->dp += pUShort(req->dp, DNS_CLASS_IN);
+			req->dp += pULong(req->dp, cfig.lease);
+			req->dp += pUShort(req->dp, 4);
+			req->dp += pIP(req->dp, cache->ip);
 		}
 	}
 	//req->bytes = req->dp - req->raw;
 }
 
-void addRRPtr(dnsRequest *req)
+void addRRPtr(data5 *req)
 {
 	for (; req->iterBegin != dnsCache[currentInd].end(); req->iterBegin++)
 	{
@@ -1593,40 +1482,40 @@ void addRRPtr(dnsRequest *req)
 			if (strcasecmp(cache->name, req->mapname))
 				break;
 
-			req->dp += putQueryString(req->dp, req->query, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, DNS_TYPE_PTR, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
+			req->dp += pQu(req->dp, req->query);
+			req->dp += pUShort(req->dp, DNS_TYPE_PTR);
+			req->dp += pUShort(req->dp, DNS_CLASS_IN);
 			req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
-			req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
+			req->dp += pULong(req->dp, cfig.lease);
 
 			if (!cache->hostname[0])
-				strcpy_s(req->cname,sizeof(req->cname), cfig.zone);
+				strcpy(req->cname, cfig.zone);
 			else if (!strchr(cache->hostname, '.'))
-				sprintf_s(req->cname,sizeof(req->cname), "%s.%s", cache->hostname, cfig.zone);
+				sprintf(req->cname, "%s.%s", cache->hostname, cfig.zone);
 			else
-				strcpy_s(req->cname,sizeof(req->cname), cache->hostname);
+				strcpy(req->cname, cache->hostname);
 
-			req->dp += putUnsignedShort(req->dp, qLen(req->cname), sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
+			req->dp += pUShort(req->dp, qLen(req->cname));
+			req->dp += pQu(req->dp, req->cname);
 		}
 	}
 	//req->bytes = req->dp - req->raw;
 }
 
-void addRRServerA(dnsRequest *req)
+void addRRServerA(data5 *req)
 {
-	if (req->qType == QTYPE_A_BARE)
-		sprintf_s(req->cname,sizeof(req->cname), "%s.%s", req->query, cfig.zone);
+	//if (req->qType == QTYPE_A_BARE)
+	//	sprintf(req->cname, "%s.%s", req->query, cfig.zone);
 
 	if (strcasecmp(req->query, req->cname))
 	{
 		req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
-		req->dp += putQueryString(req->dp, req->query, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_TYPE_CNAME, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, qLen(req->cname), sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
+		req->dp += pQu(req->dp, req->query);
+		req->dp += pUShort(req->dp, DNS_TYPE_CNAME);
+		req->dp += pUShort(req->dp, DNS_CLASS_IN);
+		req->dp += pULong(req->dp, cfig.lease);
+		req->dp += pUShort(req->dp, qLen(req->cname));
+		req->dp += pQu(req->dp, req->cname);
 	}
 
 	hostMap::iterator it = req->iterBegin;
@@ -1641,12 +1530,12 @@ void addRRServerA(dnsRequest *req)
 			if (cache->ip && cache->ip == network.dnsUdpConn[req->sockInd].server)
 			{
 				req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
-				req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
-				req->dp += putUnsignedShort(req->dp, DNS_TYPE_A, sizeof(req->raw) - (req->dp - req->raw));
-				req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-				req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-				req->dp += putUnsignedShort(req->dp, 4, sizeof(req->raw) - (req->dp - req->raw));
-				req->dp += putIP(req->dp, cache->ip, sizeof(req->raw) - (req->dp - req->raw));
+				req->dp += pQu(req->dp, req->cname);
+				req->dp += pUShort(req->dp, DNS_TYPE_A);
+				req->dp += pUShort(req->dp, DNS_CLASS_IN);
+				req->dp += pULong(req->dp, cfig.lease);
+				req->dp += pUShort(req->dp, 4);
+				req->dp += pIP(req->dp, cache->ip);
 			}
 		}
 	}
@@ -1661,24 +1550,24 @@ void addRRServerA(dnsRequest *req)
 			if (cache->ip && cache->ip != network.dnsUdpConn[req->sockInd].server)
 			{
 				req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
-				req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
-				req->dp += putUnsignedShort(req->dp, DNS_TYPE_A, sizeof(req->raw) - (req->dp - req->raw));
-				req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-				req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-				req->dp += putUnsignedShort(req->dp, 4, sizeof(req->raw) - (req->dp - req->raw));
-				req->dp += putIP(req->dp, cache->ip, sizeof(req->raw) - (req->dp - req->raw));
+				req->dp += pQu(req->dp, req->cname);
+				req->dp += pUShort(req->dp, DNS_TYPE_A);
+				req->dp += pUShort(req->dp, DNS_CLASS_IN);
+				req->dp += pULong(req->dp, cfig.lease);
+				req->dp += pUShort(req->dp, 4);
+				req->dp += pIP(req->dp, cache->ip);
 			}
 		}
 	}
 	//req->bytes = req->dp - req->raw;
 }
 
-void addRRAny(dnsRequest *req)
+void addRRAny(data5 *req)
 {
 	if (req->qType == QTYPE_A_BARE || req->qType == QTYPE_A_LOCAL || req->qType == QTYPE_A_ZONE)
-		req->iterBegin = dnsCache[currentInd].find(setMapName(req->tempname, sizeof(req->tempname), req->mapname, DNS_TYPE_A));
+		req->iterBegin = dnsCache[currentInd].find(setMapName(req->tempname, req->mapname, DNS_TYPE_A));
 	else if (req->qType == QTYPE_P_LOCAL || req->qType == QTYPE_P_ZONE)
-		req->iterBegin = dnsCache[currentInd].find(setMapName(req->tempname, sizeof(req->tempname), req->mapname, DNS_TYPE_PTR));
+		req->iterBegin = dnsCache[currentInd].find(setMapName(req->tempname, req->mapname, DNS_TYPE_PTR));
 	else
 		return;
 
@@ -1699,33 +1588,33 @@ void addRRAny(dnsRequest *req)
 				case CTYPE_LOCAL_A:
 				case CTYPE_SERVER_A_AUTH:
 				case CTYPE_STATIC_A_AUTH:
-					req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putUnsignedShort(req->dp, DNS_TYPE_A, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putUnsignedShort(req->dp, 4, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putIP(req->dp, cache->ip, sizeof(req->raw) - (req->dp - req->raw));
+					req->dp += pQu(req->dp, req->cname);
+					req->dp += pUShort(req->dp, DNS_TYPE_A);
+					req->dp += pUShort(req->dp, DNS_CLASS_IN);
+					req->dp += pULong(req->dp, cfig.lease);
+					req->dp += pUShort(req->dp, 4);
+					req->dp += pIP(req->dp, cache->ip);
 					req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
 					break;
 
 				case CTYPE_EXT_CNAME:
-					req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putUnsignedShort(req->dp, DNS_TYPE_CNAME, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putUnsignedShort(req->dp, qLen(cache->hostname), sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putQueryString(req->dp, cache->hostname, sizeof(req->raw) - (req->dp - req->raw));
+					req->dp += pQu(req->dp, req->cname);
+					req->dp += pUShort(req->dp, DNS_TYPE_CNAME);
+					req->dp += pUShort(req->dp, DNS_CLASS_IN);
+					req->dp += pULong(req->dp, cfig.lease);
+					req->dp += pUShort(req->dp, qLen(cache->hostname));
+					req->dp += pQu(req->dp, cache->hostname);
 					req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
 					break;
 
 				case CTYPE_LOCAL_CNAME:
-					req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putUnsignedShort(req->dp, DNS_TYPE_CNAME, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-					sprintf_s(req->cname,sizeof(req->cname), "%s.%s", cache->hostname, cfig.zone);
-					req->dp += putUnsignedShort(req->dp, qLen(req->cname), sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
+					req->dp += pQu(req->dp, req->cname);
+					req->dp += pUShort(req->dp, DNS_TYPE_CNAME);
+					req->dp += pUShort(req->dp, DNS_CLASS_IN);
+					req->dp += pULong(req->dp, cfig.lease);
+					sprintf(req->cname, "%s.%s", cache->hostname, cfig.zone);
+					req->dp += pUShort(req->dp, qLen(req->cname));
+					req->dp += pQu(req->dp, req->cname);
 					req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
 					break;
 
@@ -1735,20 +1624,20 @@ void addRRAny(dnsRequest *req)
 				case CTYPE_STATIC_PTR_NAUTH:
 				case CTYPE_SERVER_PTR_AUTH:
 				case CTYPE_SERVER_PTR_NAUTH:
-					req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putUnsignedShort(req->dp, DNS_TYPE_PTR, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
+					req->dp += pQu(req->dp, req->cname);
+					req->dp += pUShort(req->dp, DNS_TYPE_PTR);
+					req->dp += pUShort(req->dp, DNS_CLASS_IN);
+					req->dp += pULong(req->dp, cfig.lease);
 
 					if (!cache->hostname[0])
-						strcpy_s(req->extbuff, sizeof(req->extbuff), cfig.zone);
-					else if (!strchr(cache->hostname, '.'))
-						strcpy_s(req->extbuff, sizeof(req->extbuff), cache->hostname);
+						strcpy(req->extbuff, cfig.zone);
+					else if (strchr(cache->hostname, '.'))
+						strcpy(req->extbuff, cache->hostname);
 					else
-						sprintf_s(req->extbuff,sizeof(req->extbuff), "%s.%s", cache->hostname, cfig.zone);
+						sprintf(req->extbuff, "%s.%s", cache->hostname, cfig.zone);
 
-					req->dp += putUnsignedShort(req->dp, qLen(req->extbuff), sizeof(req->raw) - (req->dp - req->raw));
-					req->dp += putQueryString(req->dp, req->extbuff, sizeof(req->raw) - (req->dp - req->raw));
+					req->dp += pUShort(req->dp, qLen(req->extbuff));
+					req->dp += pQu(req->dp, req->extbuff);
 					req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
 					break;
 			}
@@ -1768,54 +1657,54 @@ void addRRAny(dnsRequest *req)
 	}
 }
 
-void addRRWildA(dnsRequest *req, MYDWORD ip)
+void addRRWildA(data5 *req, MYDWORD ip)
 {
 	req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
-	req->dp += putQueryString(req->dp, req->query, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedShort(req->dp, DNS_TYPE_A, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedShort(req->dp, 4, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putIP(req->dp, ip, sizeof(req->raw) - (req->dp - req->raw));
+	req->dp += pQu(req->dp, req->query);
+	req->dp += pUShort(req->dp, DNS_TYPE_A);
+	req->dp += pUShort(req->dp, DNS_CLASS_IN);
+	req->dp += pULong(req->dp, cfig.lease);
+	req->dp += pUShort(req->dp, 4);
+	req->dp += pIP(req->dp, ip);
 	//req->bytes = req->dp - req->raw;
 }
 
-void addRRLocalhostA(dnsRequest *req, data7 *cache)
+void addRRLocalhostA(data5 *req, data7 *cache)
 {
 	if (strcasecmp(req->query, req->mapname))
 	{
 		req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
-		req->dp += putQueryString(req->dp, req->query, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_TYPE_CNAME, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, qLen(req->mapname), sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putQueryString(req->dp, req->mapname, sizeof(req->raw) - (req->dp - req->raw));
+		req->dp += pQu(req->dp, req->query);
+		req->dp += pUShort(req->dp, DNS_TYPE_CNAME);
+		req->dp += pUShort(req->dp, DNS_CLASS_IN);
+		req->dp += pULong(req->dp, cfig.lease);
+		req->dp += pUShort(req->dp, qLen(req->mapname));
+		req->dp += pQu(req->dp, req->mapname);
 	}
 
 	req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
-	req->dp += putQueryString(req->dp, req->mapname, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedShort(req->dp, DNS_TYPE_A, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedShort(req->dp, 4, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putIP(req->dp, cache->ip, sizeof(req->raw) - (req->dp - req->raw));
+	req->dp += pQu(req->dp, req->mapname);
+	req->dp += pUShort(req->dp, DNS_TYPE_A);
+	req->dp += pUShort(req->dp, DNS_CLASS_IN);
+	req->dp += pULong(req->dp, cfig.lease);
+	req->dp += pUShort(req->dp, 4);
+	req->dp += pIP(req->dp, cache->ip);
 	//req->bytes = req->dp - req->raw;
 }
 
-void addRRLocalhostPtr(dnsRequest *req, data7 *cache)
+void addRRLocalhostPtr(data5 *req, data7 *cache)
 {
 	req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
-	req->dp += putQueryString(req->dp, req->query, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedShort(req->dp, DNS_TYPE_PTR, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedShort(req->dp, qLen(cache->hostname), sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putQueryString(req->dp, cache->hostname, sizeof(req->raw) - (req->dp - req->raw));
+	req->dp += pQu(req->dp, req->query);
+	req->dp += pUShort(req->dp, DNS_TYPE_PTR);
+	req->dp += pUShort(req->dp, DNS_CLASS_IN);
+	req->dp += pULong(req->dp, cfig.lease);
+	req->dp += pUShort(req->dp, qLen(cache->hostname));
+	req->dp += pQu(req->dp, cache->hostname);
 	//req->bytes = req->dp - req->raw;
 }
 
-void addRRMX(dnsRequest *req)
+void addRRMX(data5 *req)
 {
 	if (cfig.mxCount[currentInd])
 	{
@@ -1826,7 +1715,7 @@ void addRRMX(dnsRequest *req)
 	//req->bytes = req->dp - req->raw;
 }
 
-void addRRSOA(dnsRequest *req)
+void addRRSOA(data5 *req)
 {
 	if (cfig.authorized && cfig.expireTime > t)
 	{
@@ -1834,9 +1723,9 @@ void addRRSOA(dnsRequest *req)
 		req->dnsp->header.aa = 1;
 
 		if (req->qType == QTYPE_A_BARE || req->qType == QTYPE_A_LOCAL || req->qType == QTYPE_A_ZONE)
-			req->dp += putQueryString(req->dp, cfig.zone);
+			req->dp += pQu(req->dp, cfig.zone);
 		else if (req->qType == QTYPE_P_LOCAL || req->qType == QTYPE_P_ZONE)
-			req->dp += putQueryString(req->dp, cfig.authority);
+			req->dp += pQu(req->dp, cfig.authority);
 		else
 			return;
 
@@ -1845,30 +1734,30 @@ void addRRSOA(dnsRequest *req)
 		else
 			req->dnsp->header.nscount = htons(htons(req->dnsp->header.nscount) + 1);
 
-		req->dp += putUnsignedShort(req->dp, DNS_TYPE_SOA, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
+		req->dp += pUShort(req->dp, DNS_TYPE_SOA);
+		req->dp += pUShort(req->dp, DNS_CLASS_IN);
+		req->dp += pULong(req->dp, cfig.lease);
 		char *data = req->dp;
 		req->dp += 2;
-		req->dp += putQueryString(req->dp, cfig.nsP, sizeof(req->raw) - (req->dp - req->raw));
-		sprintf_s(req->extbuff,sizeof(req->extbuff), "hostmaster.%s", cfig.zone);
-		req->dp += putQueryString(req->dp, req->extbuff, sizeof(req->raw) - (req->dp - req->raw));
+		req->dp += pQu(req->dp, cfig.nsP);
+		sprintf(req->extbuff, "hostmaster.%s", cfig.zone);
+		req->dp += pQu(req->dp, req->extbuff);
 
 		if (req->qType == QTYPE_P_LOCAL || req->qType == QTYPE_P_EXT || req->qType == QTYPE_P_ZONE)
-			req->dp += putUnsignedLong(req->dp, cfig.serial2, sizeof(req->raw) - (req->dp - req->raw));
+			req->dp += pULong(req->dp, cfig.serial2);
 		else
-			req->dp += putUnsignedLong(req->dp, cfig.serial1, sizeof(req->raw) - (req->dp - req->raw));
+			req->dp += pULong(req->dp, cfig.serial1);
 
-		req->dp += putUnsignedLong(req->dp, cfig.refresh, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedLong(req->dp, cfig.retry, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedLong(req->dp, cfig.expire, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedLong(req->dp, cfig.minimum, sizeof(req->raw) - (req->dp - req->raw));
-		putUnsignedShort(data, (unsigned short)((req->dp - data) - 2));
+		req->dp += pULong(req->dp, cfig.refresh);
+		req->dp += pULong(req->dp, cfig.retry);
+		req->dp += pULong(req->dp, cfig.expire);
+		req->dp += pULong(req->dp, cfig.minimum);
+		pUShort(data, (req->dp - data) - 2);
 	}
 	//req->bytes = req->dp - req->raw;
 }
 
-void addRRNS(dnsRequest *req)
+void addRRNS(data5 *req)
 {
 	//printf("%s=%u\n", cfig.ns, cfig.expireTime);
 	if (cfig.authorized && cfig.expireTime > t)
@@ -1879,9 +1768,9 @@ void addRRNS(dnsRequest *req)
 		if (cfig.nsP[0] && (cfig.replication != 2 || cfig.dnsRepl > t))
 		{
 			if (req->qType == QTYPE_A_BARE || req->qType == QTYPE_A_LOCAL || req->qType == QTYPE_A_ZONE)
-				req->dp += putQueryString(req->dp, cfig.zone);
+				req->dp += pQu(req->dp, cfig.zone);
 			else if (req->qType == QTYPE_P_LOCAL || req->qType == QTYPE_P_ZONE)
-				req->dp += putQueryString(req->dp, cfig.authority);
+				req->dp += pQu(req->dp, cfig.authority);
 			else
 				return;
 
@@ -1890,19 +1779,19 @@ void addRRNS(dnsRequest *req)
 			else
 				req->dnsp->header.nscount = htons(htons(req->dnsp->header.nscount) + 1);
 
-			req->dp += putUnsignedShort(req->dp, DNS_TYPE_NS, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedLong(req->dp, cfig.expire, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, qLen(cfig.nsP), sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putQueryString(req->dp, cfig.nsP, sizeof(req->raw) - (req->dp - req->raw));
+			req->dp += pUShort(req->dp, DNS_TYPE_NS);
+			req->dp += pUShort(req->dp, DNS_CLASS_IN);
+			req->dp += pULong(req->dp, cfig.expire);
+			req->dp += pUShort(req->dp, qLen(cfig.nsP));
+			req->dp += pQu(req->dp, cfig.nsP);
 		}
 
 		if (cfig.nsS[0] && (cfig.replication == 2 || cfig.dnsRepl > t))
 		{
 			if (req->qType == QTYPE_A_BARE || req->qType == QTYPE_A_LOCAL || req->qType == QTYPE_A_ZONE)
-				req->dp += putQueryString(req->dp, cfig.zone);
+				req->dp += pQu(req->dp, cfig.zone);
 			else if (req->qType == QTYPE_P_LOCAL || req->qType == QTYPE_P_ZONE)
-				req->dp += putQueryString(req->dp, cfig.authority);
+				req->dp += pQu(req->dp, cfig.authority);
 			else
 				return;
 
@@ -1911,17 +1800,17 @@ void addRRNS(dnsRequest *req)
 			else
 				req->dnsp->header.nscount = htons(htons(req->dnsp->header.nscount) + 1);
 
-			req->dp += putUnsignedShort(req->dp, DNS_TYPE_NS, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedLong(req->dp, cfig.expire, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, qLen(cfig.nsS), sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putQueryString(req->dp, cfig.nsS, sizeof(req->raw) - (req->dp - req->raw));
+			req->dp += pUShort(req->dp, DNS_TYPE_NS);
+			req->dp += pUShort(req->dp, DNS_CLASS_IN);
+			req->dp += pULong(req->dp, cfig.expire);
+			req->dp += pUShort(req->dp, qLen(cfig.nsS));
+			req->dp += pQu(req->dp, cfig.nsS);
 		}
 	}
 	//req->bytes = req->dp - req->raw;
 }
 
-void addRRAd(dnsRequest *req)
+void addRRAd(data5 *req)
 {
 	//printf("%s=%u\n", cfig.ns, cfig.expireTime);
 	if (cfig.authorized && cfig.expireTime > t)
@@ -1929,161 +1818,157 @@ void addRRAd(dnsRequest *req)
 		if (cfig.nsP[0] && (cfig.replication != 2 || cfig.dnsRepl > t))
 		{
 			req->dnsp->header.adcount = htons(htons(req->dnsp->header.adcount) + 1);
-			req->dp += putQueryString(req->dp, cfig.nsP);
+			req->dp += pQu(req->dp, cfig.nsP);
 
-			req->dp += putUnsignedShort(req->dp, DNS_TYPE_A, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, 4, sizeof(req->raw) - (req->dp - req->raw));
+			req->dp += pUShort(req->dp, DNS_TYPE_A);
+			req->dp += pUShort(req->dp, DNS_CLASS_IN);
+			req->dp += pULong(req->dp, cfig.lease);
+			req->dp += pUShort(req->dp, 4);
 
 			if (cfig.replication)
-				req->dp += putIP(req->dp, cfig.zoneServers[0], sizeof(req->raw) - (req->dp - req->raw));
+				req->dp += pIP(req->dp, cfig.zoneServers[0]);
 			else
-				req->dp += putIP(req->dp, network.listenServers[req->sockInd], sizeof(req->raw) - (req->dp - req->raw));
+				req->dp += pIP(req->dp, network.listenServers[req->sockInd]);
 		}
 
 		if (cfig.nsS[0] && (cfig.replication == 2 || cfig.dnsRepl > t))
 		{
 			req->dnsp->header.adcount = htons(htons(req->dnsp->header.adcount) + 1);
-			req->dp += putQueryString(req->dp, cfig.nsS, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, DNS_TYPE_A, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putUnsignedShort(req->dp, 4, sizeof(req->raw) - (req->dp - req->raw));
-			req->dp += putIP(req->dp, cfig.zoneServers[1], sizeof(req->raw) - (req->dp - req->raw));
+			req->dp += pQu(req->dp, cfig.nsS);
+			req->dp += pUShort(req->dp, DNS_TYPE_A);
+			req->dp += pUShort(req->dp, DNS_CLASS_IN);
+			req->dp += pULong(req->dp, cfig.lease);
+			req->dp += pUShort(req->dp, 4);
+			req->dp += pIP(req->dp, cfig.zoneServers[1]);
 		}
 	}
 	//req->bytes = req->dp - req->raw;
 }
 
-void addRRAOne(dnsRequest *req)
+void addRRAOne(data5 *req)
 {
 	if (data7 *cache = req->iterBegin->second)
 	{
 		req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
 
 		if (!cache->name[0])
-			strcpy_s(req->cname, sizeof(req->cname), cfig.zone);
+			strcpy(req->cname, cfig.zone);
 		else if (!strchr(cache->name, '.'))
-			sprintf_s(req->cname,sizeof(req->cname), "%s.%s", cache->name, cfig.zone);
+			sprintf(req->cname, "%s.%s", cache->name, cfig.zone);
 		else
-			strcpy_s(req->cname, sizeof(req->cname), cache->name);
+			strcpy(req->cname, cache->name);
 
-		req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_TYPE_A, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, 4, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putIP(req->dp, cache->ip, sizeof(req->raw) - (req->dp - req->raw));
+		req->dp += pQu(req->dp, req->cname);
+		req->dp += pUShort(req->dp, DNS_TYPE_A);
+		req->dp += pUShort(req->dp, DNS_CLASS_IN);
+		req->dp += pULong(req->dp, cfig.lease);
+		req->dp += pUShort(req->dp, 4);
+		req->dp += pIP(req->dp, cache->ip);
 		//req->bytes = req->dp - req->raw;
 	}
 }
 
-void addRRPtrOne(dnsRequest *req)
+void addRRPtrOne(data5 *req)
 {
 	if (data7 *cache = req->iterBegin->second)
 	{
 		req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
-		sprintf_s(req->cname,sizeof(req->cname), "%s%s", cache->name, arpa);
-		req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_TYPE_PTR, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
+		sprintf(req->cname, "%s%s", cache->name, arpa);
+		req->dp += pQu(req->dp, req->cname);
+		req->dp += pUShort(req->dp, DNS_TYPE_PTR);
+		req->dp += pUShort(req->dp, DNS_CLASS_IN);
+		req->dp += pULong(req->dp, cfig.lease);
 
 		if (!cache->hostname[0])
-			strcpy_s(req->cname, sizeof(req->cname), cfig.zone);
+			strcpy(req->cname, cfig.zone);
 		else if (!strchr(cache->hostname, '.'))
-			sprintf_s(req->cname,sizeof(req->cname), "%s.%s", cache->hostname, cfig.zone);
+			sprintf(req->cname, "%s.%s", cache->hostname, cfig.zone);
 		else
-			strcpy_s(req->cname, sizeof(req->cname), cache->hostname);
+			strcpy(req->cname, cache->hostname);
 
-		req->dp += putUnsignedShort(req->dp, qLen(req->cname), sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
+		req->dp += pUShort(req->dp, qLen(req->cname));
+		req->dp += pQu(req->dp, req->cname);
 	}
 
 	//req->bytes = req->dp - req->raw;
 }
 
-void addRRSTAOne(dnsRequest *req)
+void addRRSTAOne(data5 *req)
 {
 	if (data7 *cache = req->iterBegin->second)
 	{
 		req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
 
 		if (!cache->name[0])
-			strcpy_s(req->cname, sizeof(req->cname), cfig.zone);
+			strcpy(req->cname, cfig.zone);
 		else if (!strchr(cache->name, '.'))
-			sprintf_s(req->cname,sizeof(req->cname), "%s.%s", cache->name, cfig.zone);
+			sprintf(req->cname, "%s.%s", cache->name, cfig.zone);
 		else
-			strcpy_s(req->cname, sizeof(req->cname), cache->name);
+			strcpy(req->cname, cache->name);
 
-		req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_TYPE_A, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, 4, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putIP(req->dp, cache->ip, sizeof(req->raw) - (req->dp - req->raw));
+		req->dp += pQu(req->dp, req->cname);
+		req->dp += pUShort(req->dp, DNS_TYPE_A);
+		req->dp += pUShort(req->dp, DNS_CLASS_IN);
+		req->dp += pULong(req->dp, cfig.lease);
+		req->dp += pUShort(req->dp, 4);
+		req->dp += pIP(req->dp, cache->ip);
 	}
 	//req->bytes = req->dp - req->raw;
 }
 
-void addRRCNOne(dnsRequest *req)
+void addRRCNOne(data5 *req)
 {
 	if (data7 *cache = req->iterBegin->second)
 	{
 		req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
 
 		if (!cache->name[0])
-			strcpy_s(req->cname, sizeof(req->cname), cfig.zone);
+			strcpy(req->cname, cfig.zone);
 		else if (strchr(cache->name, '.'))
-			strcpy_s(req->cname, sizeof(req->cname), cache->name);
+			strcpy(req->cname, cache->name);
 		else
-			sprintf_s(req->cname,sizeof(req->cname), "%s.%s", cache->name, cfig.zone);
+			sprintf(req->cname, "%s.%s", cache->name, cfig.zone);
 
-		req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_TYPE_CNAME, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
+		req->dp += pQu(req->dp, req->cname);
+		req->dp += pUShort(req->dp, DNS_TYPE_CNAME);
+		req->dp += pUShort(req->dp, DNS_CLASS_IN);
+		req->dp += pULong(req->dp, cfig.lease);
 
 		if (!cache->hostname[0])
-			strcpy_s(req->cname, sizeof(req->cname), cfig.zone);
+			strcpy(req->cname, cfig.zone);
 		else if (strchr(cache->hostname, '.'))
-			strcpy_s(req->cname, sizeof(req->cname), cache->hostname);
+			strcpy(req->cname, cache->hostname);
 		else
-			sprintf_s(req->cname,sizeof(req->cname), "%s.%s", cache->hostname, cfig.zone);
+			sprintf(req->cname, "%s.%s", cache->hostname, cfig.zone);
 
-		req->dp += putUnsignedShort(req->dp, qLen(req->cname), sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
+		req->dp += pUShort(req->dp, qLen(req->cname));
+		req->dp += pQu(req->dp, req->cname);
 	}
 	//req->bytes = req->dp - req->raw;
 }
 
-void addRRMXOne(dnsRequest *req, MYBYTE m)
+void addRRMXOne(data5 *req, MYBYTE m)
 {
-	//req->dp += putQueryString(req->dp, req->query);
+	//req->dp += pQu(req->dp, req->query);
 	req->dnsp->header.ancount = htons(htons(req->dnsp->header.ancount) + 1);
-	req->dp += putQueryString(req->dp, cfig.zone, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedShort(req->dp, DNS_TYPE_MX, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedLong(req->dp, cfig.lease, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedShort(req->dp, (unsigned short)(strlen(cfig.mxServers[currentInd][m].hostname) + 4), sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putUnsignedShort(req->dp, cfig.mxServers[currentInd][m].pref, sizeof(req->raw) - (req->dp - req->raw));
-	req->dp += putQueryString(req->dp, cfig.mxServers[currentInd][m].hostname, sizeof(req->raw) - (req->dp - req->raw));
+	req->dp += pQu(req->dp, cfig.zone);
+	req->dp += pUShort(req->dp, DNS_TYPE_MX);
+	req->dp += pUShort(req->dp, DNS_CLASS_IN);
+	req->dp += pULong(req->dp, cfig.lease);
+	req->dp += pUShort(req->dp, strlen(cfig.mxServers[currentInd][m].hostname) + 4);
+	req->dp += pUShort(req->dp, cfig.mxServers[currentInd][m].pref);
+	req->dp += pQu(req->dp, cfig.mxServers[currentInd][m].hostname);
 	//req->bytes = req->dp - req->raw;
 }
 
 void procHTTP(data19 *req)
 {
 	//debug("procHTTP");
-	char logBuff[512];
+	char logBuff[256];
 	char tempbuff[512];
 	req->ling.l_onoff = 1; //0 = off (l_linger ignored), nonzero = on
 	req->ling.l_linger = 30; //0 = discard data, nonzero = wait for data sent
-	if (SOCKET_ERROR == setsockopt(req->sock, SOL_SOCKET, SO_LINGER, (const char*)&req->ling, sizeof(req->ling)))
-	{
-		sprintf_s(logBuff, sizeof(logBuff), "Failed to set SO_LINGER on http socket");
-		logDHCPMess(logBuff, 1);
-	}
+	setsockopt(req->sock, SOL_SOCKET, SO_LINGER, (const char*)&req->ling, sizeof(req->ling));
 
 	timeval tv1;
 	fd_set readfds1;
@@ -2092,23 +1977,22 @@ void procHTTP(data19 *req)
 	tv1.tv_usec = 0;
 	FD_SET(req->sock, &readfds1);
 
-	if (0 >= select((int)(req->sock + 1), &readfds1, NULL, NULL, &tv1))
+	if (!select((req->sock + 1), &readfds1, NULL, NULL, &tv1))
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "Client %s, HTTP Message Receive failed", IP2String(tempbuff, sizeof(tempbuff), req->remote.sin_addr.s_addr));
+		sprintf(logBuff, "HTTP Client %s, Message Receive failed", IP2String(tempbuff, req->remote.sin_addr.s_addr));
 		logDHCPMess(logBuff, 1);
 		closesocket(req->sock);
 		free(req);
 		return;
 	}
 
-	errno = 0;
-	char buffer[1024];
+	char buffer[2048];
 	req->bytes = recv(req->sock, buffer, sizeof(buffer), 0);
+	errno = WSAGetLastError();
 
-	if (req->bytes == SOCKET_ERROR || req->bytes <= 0)
+	if (verbatim || cfig.dhcpLogLevel >= 1 && (errno || req->bytes <= 0))
 	{
-		if (req->bytes == SOCKET_ERROR) errno = WSAGetLastError();
-		sprintf_s(logBuff, sizeof(logBuff), "Client %s, HTTP Message Receive failed, WSAError %d", IP2String(tempbuff, sizeof(tempbuff), req->remote.sin_addr.s_addr), errno);
+		sprintf(logBuff, "HTTP Client %s, Message Receive failed, WSAError %d", IP2String(tempbuff, req->remote.sin_addr.s_addr), errno);
 		logDHCPMess(logBuff, 1);
 		closesocket(req->sock);
 		free(req);
@@ -2116,8 +2000,8 @@ void procHTTP(data19 *req)
 	}
 	else if (verbatim || cfig.dhcpLogLevel >= 2)
 	{
-		//sprintf_s(logBuff, sizeof(logBuff), "Client %s, HTTP Request Received", IP2String(tempbuff, sizeof(tempbuff), req->remote.sin_addr.s_addr));
-		//logDHCPMess(logBuff, 2);
+		sprintf(logBuff, "HTTP Client %s, Request Processed", IP2String(tempbuff, req->remote.sin_addr.s_addr));
+		logDHCPMess(logBuff, 2);
 		//printf("%s\n", buffer);
 	}
 
@@ -2125,17 +2009,13 @@ void procHTTP(data19 *req)
 	{
 		if (verbatim || cfig.dhcpLogLevel >= 2)
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "Client %s, HTTP Access Denied", IP2String(tempbuff, sizeof(tempbuff), req->remote.sin_addr.s_addr));
+			sprintf(logBuff, "HTTP Client %s, Access Denied", IP2String(tempbuff, req->remote.sin_addr.s_addr));
 			logDHCPMess(logBuff, 2);
 		}
 
-		req->dp = (char*)calloc(sizeof(char), sizeof(send403));
-		if (req->dp)
-		{
-			req->memSize = sizeof(char) * sizeof(send403);
-			req->bytes = sprintf_s(req->dp, req->memSize, send403);
-			_beginthread(sendHTTP, 0, (void*)req);
-		}
+		req->dp = (char*)calloc(1, sizeof(send403));
+		req->memSize = sizeof(send403);
+		req->bytes = sprintf(req->dp, send403);
 		return;
 	}
 
@@ -2153,30 +2033,25 @@ void procHTTP(data19 *req)
 
 	if (fp && !strcasecmp(fp, "/"))
 		sendStatus(req);
-	//	else if (fp && !strcasecmp(fp, "/scopestatus"))
-	//		sendScopeStatus(req);
-	else if (fp && !strcasecmp(fp, "/json"))
-		sendJSONStatus(req);
+//	else if (fp && !strcasecmp(fp, "/scopestatus"))
+//		sendScopeStatus(req);
 	else
 	{
 		if (fp && (verbatim || cfig.dhcpLogLevel >= 2))
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "Client %s, %s not found", IP2String(tempbuff, sizeof(tempbuff), req->remote.sin_addr.s_addr), fp);
+			sprintf(logBuff, "HTTP Client %s, %s not found", IP2String(tempbuff, req->remote.sin_addr.s_addr), fp);
 			logDHCPMess(logBuff, 2);
 		}
 		else if (verbatim || cfig.dhcpLogLevel >= 2)
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "Client %s, Invalid http request", IP2String(tempbuff, sizeof(tempbuff), req->remote.sin_addr.s_addr));
+			sprintf(logBuff, "HTTP Client %s, Invalid request", IP2String(tempbuff, req->remote.sin_addr.s_addr));
 			logDHCPMess(logBuff, 2);
 		}
 
-		req->dp = (char*)calloc(sizeof(char), sizeof(send404));
-		if (req->dp)
-		{
-			req->memSize = sizeof(char) * sizeof(send404);
-			req->bytes = sprintf_s(req->dp, req->memSize, send404);
-			_beginthread(sendHTTP, 0, (void*)req);
-		}
+		req->dp = (char*)calloc(1, sizeof(send404));
+		req->bytes = sprintf(req->dp, send404);
+		req->memSize = sizeof(send404);
+		_beginthread(sendHTTP, 0, (void*)req);
 		return;
 	}
 }
@@ -2185,20 +2060,21 @@ void sendStatus(data19 *req)
 {
 	//debug("sendStatus");
 	char ipbuff[16];
+	char extbuff[16];
 	char logBuff[512];
 	char tempbuff[512];
 
 	dhcpMap::iterator p;
-	//MYDWORD iip = 0;
+	MYDWORD iip = 0;
 	data7 *dhcpEntry = NULL;
 	//data7 *cache = NULL;
 	//printf("%d=%d\n", dhcpCache.size(), cfig.dhcpSize);
-	req->memSize = (int)(2048 + (135 * dhcpCache.size()) + (cfig.dhcpSize * 26));
+	req->memSize = 2048 + (135 * dhcpCache.size()) + (cfig.dhcpSize * 26);
 	req->dp = (char*)calloc(1, req->memSize);
 
 	if (!req->dp)
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "Memory Error");
+		sprintf(logBuff, "Memory Error");
 		logDHCPMess(logBuff, 1);
 		closesocket(req->sock);
 		free(req);
@@ -2207,127 +2083,109 @@ void sendStatus(data19 *req)
 
 	char *fp = req->dp;
 	char *maxData = req->dp + (req->memSize - 512);
-	tm ttm;
-	gmtime_s(&ttm, &t);
-	strftime(tempbuff, sizeof(tempbuff), "%a, %d %b %Y %H:%M:%S GMT", &ttm);
-	fp += sprintf_s(fp, maxData - fp, send200, tempbuff, tempbuff);
-	char *contentStart = fp;
-	fp += sprintf_s(fp,maxData - fp, htmlStart, htmlTitle);
-	fp += sprintf_s(fp,maxData - fp, bodyStart, sVersionName,sVersionNumber);
-	fp += sprintf_s(fp,maxData - fp, "<table border=\"1\" cellpadding=\"1\" width=\"640\" bgcolor=\"#b8b8b8\">\n");
+	//tm *ttm = gmtime(&t);
+	//strftime(tempbuff, sizeof(tempbuff), "%a, %d %b %Y %H:%M:%S GMT", ttm);
+	//fp += sprintf(fp, send200, tempbuff, tempbuff);
+	//fp += sprintf(fp, send200);
+	//char *contentStart = fp;
+	fp += sprintf(fp, htmlStart, htmlTitle);
+
+	//const char bodyStart[] = "<body bgcolor=\"#cccccc\"><table border=\"0\"><tr><td>\n<table width=\"100%%\" border=\"0\"><tr><td colspan=\"2\" align=\"center\"><font size=\"5\"><b>%s</b></font></td></tr><tr><td align=\"left\">Server Name: %s%s</td><td align=\"right\"><a target=\"_new\" href=\"http://dhcp-dns-server.sourceforge.net\">http://dhcp-dns-server.sourceforge.net</td></tr></table>";
+
+	if (cfig.replication == 1)
+		fp += sprintf(fp, bodyStart, sVersion, cfig.servername, "(Primary)");
+	else if (cfig.replication == 2)
+		fp += sprintf(fp, bodyStart, sVersion, cfig.servername, "(Secondary)");
+	else
+		fp += sprintf(fp, bodyStart, sVersion, cfig.servername, "");
+
+	//fp += sprintf(fp, bodyStart, sVersion, cfig.servername);
+	fp += sprintf(fp, "\n<table border=\"1\" cellpadding=\"1\" width=\"100%%\" bgcolor=\"#b8b8b8\">\n");
 
 	if (cfig.dhcpRepl > t)
 	{
-		fp += sprintf_s(fp,maxData - fp, "<tr><th colspan=\"5\"><font size=\"5\"><i>Active Leases</i></font></th></tr>\n");
-		fp += sprintf_s(fp,maxData - fp, "<tr><th>Mac Address</th><th>IP</th><th>Lease Expiry</th><th>Hostname (first 20 chars)</th><th>Server</th></tr>\n");
+		fp += sprintf(fp, "<tr><th colspan=\"5\"><font size=\"5\"><i>Active Leases</i></font></th></tr>\n");
+		fp += sprintf(fp, "<tr><th>Mac Address</th><th>IP</th><th>Lease Expiry</th><th>Hostname (first 20 chars)</th><th>Server</th></tr>\n");
 	}
 	else
 	{
-		fp += sprintf_s(fp,maxData - fp, "<tr><th colspan=\"4\"><font size=\"5\"><i>Active Leases</i></font></th></tr>\n");
-		fp += sprintf_s(fp,maxData - fp, "<tr><th>Mac Address</th><th>IP</th><th>Lease Expiry</th><th>Hostname (first 20 chars)</th></tr>\n");
+		fp += sprintf(fp, "<tr><th colspan=\"4\"><font size=\"5\"><i>Active Leases</i></font></th></tr>\n");
+		fp += sprintf(fp, "<tr><th>Mac Address</th><th>IP</th><th>Lease Expiry</th><th>Hostname (first 20 chars)</th></tr>\n");
 	}
 
 	for (p = dhcpCache.begin(); kRunning && p != dhcpCache.end() && fp < maxData; p++)
 	{
+		//if ((dhcpEntry = p->second) && dhcpEntry->display)
 		if ((dhcpEntry = p->second) && dhcpEntry->display && dhcpEntry->expiry >= t)
 		{
-			fp += sprintf_s(fp,maxData - fp, "<tr>");
-			fp += sprintf_s(fp,maxData - fp, td200, dhcpEntry->mapname);
-			fp += sprintf_s(fp, maxData - fp, td200, IP2String(tempbuff, sizeof(tempbuff), dhcpEntry->ip));
+			fp += sprintf(fp, "<tr>");
+			fp += sprintf(fp, td200, dhcpEntry->mapname);
+			fp += sprintf(fp, td200, IP2String(tempbuff, dhcpEntry->ip));
 
 			if (dhcpEntry->expiry >= INT_MAX)
-				fp += sprintf_s(fp, maxData - fp, td200, "Infinity");
+				fp += sprintf(fp, td200, "Infinity");
 			else
 			{
-				tm ttm;
-				localtime_s(&ttm, &dhcpEntry->expiry);
-				strftime(tempbuff, sizeof(tempbuff), "%d-%b-%y %X", &ttm);
-				fp += sprintf_s(fp, maxData - fp, td200, tempbuff);
+				tm *ttm = localtime(&dhcpEntry->expiry);
+				strftime(tempbuff, sizeof(tempbuff), "%d-%b-%y %X", ttm);
+				fp += sprintf(fp, tdnowrap200, tempbuff);
 			}
 
 			if (dhcpEntry->hostname[0])
 			{
-				strcpy_s(tempbuff, sizeof(tempbuff), dhcpEntry->hostname);
+				strcpy(tempbuff, dhcpEntry->hostname);
 				tempbuff[20] = 0;
-				fp += sprintf_s(fp, maxData - fp, td200, tempbuff);
+				fp += sprintf(fp, td200, tempbuff);
 			}
 			else
-				fp += sprintf_s(fp, maxData - fp, td200, "&nbsp;");
+				fp += sprintf(fp, td200, "&nbsp;");
 
 			if (cfig.dhcpRepl > t)
 			{
 				if (dhcpEntry->local && cfig.replication == 1)
-					fp += sprintf_s(fp, maxData - fp, td200, "Primary");
+					fp += sprintf(fp, td200, "Primary");
 				else if (dhcpEntry->local && cfig.replication == 2)
-					fp += sprintf_s(fp, maxData - fp, td200, "Secondary");
+					fp += sprintf(fp, td200, "Secondary");
 				else if (cfig.replication == 1)
-					fp += sprintf_s(fp, maxData - fp, td200, "Secondary");
+					fp += sprintf(fp, td200, "Secondary");
 				else
-					fp += sprintf_s(fp, maxData - fp, td200, "Primary");
+					fp += sprintf(fp, td200, "Primary");
 			}
 
-			fp += sprintf_s(fp, maxData - fp, "</tr>\n");
+			fp += sprintf(fp, "</tr>\n");
 		}
 	}
 
-/*
-	fp += sprintf_s(fp,maxData - fp, "</table>\n<br>\n<table border=\"1\" width=\"640\" cellpadding=\"1\" bgcolor=\"#b8b8b8\">\n");
-	fp += sprintf_s(fp,maxData - fp, "<tr><th colspan=\"5\"><font size=\"5\"><i>Free Dynamic Leases</i></font></th></tr>\n");
-	MYBYTE colNum = 0;
+	fp += sprintf(fp, "</table>\n<br>\n<table border=\"1\" cellpadding=\"1\" width=\"100%%\" bgcolor=\"#b8b8b8\">\n");
+	fp += sprintf(fp, "<tr><th colspan=\"4\"><font size=\"5\"><i>Free Dynamic Leases</i></font></th></tr>\n");
+	fp += sprintf(fp, "<tr><td><b>DHCP Range</b></td><td><b>Mask</b></td><td align=\"right\"><b>Available Leases</b></td><td align=\"right\"><b>Free Leases</b></td></tr>\n");
 
 	for (char rangeInd = 0; kRunning && rangeInd < cfig.rangeCount && fp < maxData; rangeInd++)
 	{
-		for (MYDWORD ind = 0, iip = cfig.dhcpRanges[(unsigned int)rangeInd].rangeStart; kRunning && iip <= cfig.dhcpRanges[(unsigned int)rangeInd].rangeEnd; iip++, ind++)
+		MYWORD ipused = 0;
+		MYWORD ipfree = 0;
+		MYWORD ind = 0;
+
+		for (MYDWORD iip = cfig.dhcpRanges[rangeInd].rangeStart; iip <= cfig.dhcpRanges[rangeInd].rangeEnd; iip++, ind++)
 		{
-			if (cfig.dhcpRanges[(unsigned int)rangeInd].expiry && cfig.dhcpRanges[(unsigned int)rangeInd].expiry[ind] < t)
+			if (cfig.dhcpRanges[rangeInd].expiry[ind] != INT_MAX)
 			{
-				if (!colNum)
-				{
-					fp += sprintf_s(fp,maxData - fp, "<tr>");
-					colNum = 1;
-				}
-				else if (colNum < 5)
-					colNum++;
+				if (cfig.dhcpRanges[rangeInd].expiry[ind] < t)
+					ipfree++;
 				else
-				{
-					fp += sprintf_s(fp,maxData - fp, "</tr>\n<tr>");
-					colNum = 1;
-				}
-
-				fp += sprintf_s(fp,maxData - fp, td200, IP2String(tempbuff, sizeof(tempbuff), htonl(iip)));
+					ipused++;
 			}
 		}
+
+		IP2String(tempbuff, ntohl(cfig.dhcpRanges[rangeInd].rangeStart));
+		IP2String(ipbuff, ntohl(cfig.dhcpRanges[rangeInd].rangeEnd));
+		IP2String(extbuff, cfig.dhcpRanges[rangeInd].mask);
+		fp += sprintf(fp, "<tr><td nowrap>%s - %s</td><td nowrap>%s</td><td align=\"right\">%i</td><td align=\"right\">%i</td></tr>\n", tempbuff, ipbuff, extbuff, (ipused + ipfree), ipfree);
 	}
 
-	if (colNum)
-		fp += sprintf_s(fp,maxData - fp, "</tr>\n");
-*/
-	fp += sprintf_s(fp,maxData - fp, "</table>\n<br>\n<table border=\"1\" cellpadding=\"1\" width=\"640\" bgcolor=\"#b8b8b8\">\n");
-	fp += sprintf_s(fp,maxData - fp, "<tr><th colspan=\"4\"><font size=\"5\"><i>Free Dynamic Leases</i></font></th></tr>\n");
-	fp += sprintf_s(fp,maxData - fp, "<tr><td><b>DHCP Range</b></td><td align=\"right\"><b>Available Leases</b></td><td align=\"right\"><b>Free Leases</b></td></tr>\n");
-
-	for (char rangeInd = 0; kRunning && rangeInd < cfig.rangeCount && fp < maxData; rangeInd++)
-	{
-		float ipused = 0;
-		float ipfree = 0;
-		int ind = 0;
-
-		for (MYDWORD iip = cfig.dhcpRanges[(unsigned int)rangeInd].rangeStart; iip <= cfig.dhcpRanges[(unsigned int)rangeInd].rangeEnd; iip++, ind++)
-		{
-			if (cfig.dhcpRanges[(unsigned int)rangeInd].expiry && cfig.dhcpRanges[(unsigned int)rangeInd].expiry[ind] < t)
-				ipfree++;
-			else if (cfig.dhcpRanges[(unsigned int)rangeInd].dhcpEntry && cfig.dhcpRanges[(unsigned int)rangeInd].dhcpEntry[ind] && !(cfig.dhcpRanges[(unsigned int)rangeInd].dhcpEntry[ind]->fixed))
-				ipused++;
-		}
-
-		IP2String(tempbuff, sizeof(tempbuff), ntohl(cfig.dhcpRanges[(unsigned int)rangeInd].rangeStart));
-		IP2String(ipbuff, sizeof(ipbuff), ntohl(cfig.dhcpRanges[(unsigned int)rangeInd].rangeEnd));
-		fp += sprintf_s(fp, maxData - fp, "<tr><td>%s - %s</td><td align=\"right\">%5.0f</td><td align=\"right\">%5.0f</td></tr>\n", tempbuff, ipbuff, (ipused + ipfree), ipfree);
-	}
-
-	fp += sprintf_s(fp,maxData - fp, "</table>\n<br>\n<table border=\"1\" width=\"640\" cellpadding=\"1\" bgcolor=\"#b8b8b8\">\n");
-	fp += sprintf_s(fp,maxData - fp, "<tr><th colspan=\"4\"><font size=\"5\"><i>Free Static Leases</i></font></th></tr>\n");
-	fp += sprintf_s(fp,maxData - fp, "<tr><th>Mac Address</th><th>IP</th><th>Mac Address</th><th>IP</th></tr>\n");
+	fp += sprintf(fp, "</table>\n<br>\n<table border=\"1\" width=\"100%%\" cellpadding=\"1\" bgcolor=\"#b8b8b8\">\n");
+	fp += sprintf(fp, "<tr><th colspan=\"4\"><font size=\"5\"><i>Free Static Leases</i></font></th></tr>\n");
+	fp += sprintf(fp, "<tr><th>Mac Address</th><th>IP</th><th>Mac Address</th><th>IP</th></tr>\n");
 
 	MYBYTE colNum = 0;
 
@@ -2337,7 +2195,7 @@ void sendStatus(data19 *req)
 		{
 			if (!colNum)
 			{
-				fp += sprintf_s(fp, maxData - fp, "<tr>");
+				fp += sprintf(fp, "<tr>");
 				colNum = 1;
 			}
 			else if (colNum == 1)
@@ -2346,23 +2204,22 @@ void sendStatus(data19 *req)
 			}
 			else if (colNum == 2)
 			{
-				fp += sprintf_s(fp, maxData - fp, "</tr>\n<tr>");
+				fp += sprintf(fp, "</tr>\n<tr>");
 				colNum = 1;
 			}
 
-			fp += sprintf_s(fp,maxData - fp, td200, dhcpEntry->mapname);
-			fp += sprintf_s(fp,maxData - fp, td200, IP2String(tempbuff, sizeof(tempbuff), dhcpEntry->ip));
+			fp += sprintf(fp, td200, dhcpEntry->mapname);
+			fp += sprintf(fp, td200, IP2String(tempbuff, dhcpEntry->ip));
 		}
 	}
 
 	if (colNum)
-		fp += sprintf_s(fp, maxData - fp, "</tr>\n");
+		fp += sprintf(fp, "</tr>\n");
 
-	fp += sprintf_s(fp, maxData - fp, "</table>\n</body>\n</html>");
-	MYBYTE x = sprintf_s(tempbuff,sizeof(tempbuff), "%u", (unsigned int)(fp - contentStart));
-	memcpy((contentStart - 12), tempbuff, x);
-	req->bytes = (int)(fp - req->dp);
-
+	fp += sprintf(fp, "</table></td></tr></table>\n</body>\n</html>");
+	//MYBYTE x = sprintf(tempbuff, "%u", (fp - contentStart));
+	//memcpy((contentStart - 12), tempbuff, x);
+	req->bytes = fp - req->dp;
 	_beginthread(sendHTTP, 0, (void*)req);
 	return;
 }
@@ -2378,7 +2235,7 @@ void sendScopeStatus(data19 *req)
 
 	if (!req->dp)
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "Memory Error");
+		sprintf(logBuff, "Memory Error");
 		logDHCPMess(logBuff, 1);
 		closesocket(req->sock);
 		free(req);
@@ -2389,13 +2246,13 @@ void sendScopeStatus(data19 *req)
 	char *maxData = req->dp + (req->memSize - 512);
 	tm *ttm = gmtime(&t);
 	strftime(tempbuff, sizeof(tempbuff), "%a, %d %b %Y %H:%M:%S GMT", ttm);
-	fp += sprintf_s(fp,sizeof(fp), send200, tempbuff, tempbuff);
+	fp += sprintf(fp, send200, tempbuff, tempbuff);
 	char *contentStart = fp;
-	fp += sprintf_s(fp,sizeof(fp), htmlStart, htmlTitle);
-	fp += sprintf_s(fp,sizeof(fp), bodyStart, sVersionName,sVersionNumber);
-	fp += sprintf_s(fp,sizeof(fp), "<table border=\"1\" cellpadding=\"1\" width=\"640\" bgcolor=\"#b8b8b8\">\n");
-	fp += sprintf_s(fp,sizeof(fp), "<tr><th colspan=\"4\"><font size=\"5\"><i>Scope Status</i></font></th></tr>\n");
-	fp += sprintf_s(fp,sizeof(fp), "<tr><td><b>DHCP Range</b></td><td align=\"right\"><b>IPs Used</b></td><td align=\"right\"><b>IPs Free</b></td><td align=\"right\"><b>%% Free</b></td></tr>\n");
+	fp += sprintf(fp, htmlStart, htmlTitle);
+	fp += sprintf(fp, bodyStart, sVersion);
+	fp += sprintf(fp, "<table border=\"1\" cellpadding=\"1\" width=\"640\" bgcolor=\"#b8b8b8\">\n");
+	fp += sprintf(fp, "<tr><th colspan=\"4\"><font size=\"5\"><i>Scope Status</i></font></th></tr>\n");
+	fp += sprintf(fp, "<tr><td><b>DHCP Range</b></td><td align=\"right\"><b>IPs Used</b></td><td align=\"right\"><b>IPs Free</b></td><td align=\"right\"><b>%% Free</b></td></tr>\n");
 	MYBYTE colNum = 0;
 
 	for (char rangeInd = 0; kRunning && rangeInd < cfig.rangeCount && fp < maxData; rangeInd++)
@@ -2404,21 +2261,21 @@ void sendScopeStatus(data19 *req)
 		float ipfree = 0;
 		int ind = 0;
 
-		for (MYDWORD iip = cfig.dhcpRanges[(unsigned int)rangeInd].rangeStart; iip <= cfig.dhcpRanges[(unsigned int)rangeInd].rangeEnd; iip++, ind++)
+		for (MYDWORD iip = cfig.dhcpRanges[rangeInd].rangeStart; iip <= cfig.dhcpRanges[rangeInd].rangeEnd; iip++, ind++)
 		{
-			if (cfig.dhcpRanges[(unsigned int)rangeInd].expiry && cfig.dhcpRanges[(unsigned int)rangeInd].expiry[ind] > t)
+			if (cfig.dhcpRanges[rangeInd].expiry[ind] > t)
 				ipused++;
 			else
 				ipfree++;
 		}
 
-		IP2String(tempbuff, sizeof(tempbuff), ntohl(cfig.dhcpRanges[(unsigned int)rangeInd].rangeStart));
-		IP2String(req->extbuff, sizeof(req->extbuff), ntohl(cfig.dhcpRanges[(unsigned int)rangeInd].rangeEnd));
-		fp += sprintf_s(fp,sizeof(fp), "<tr><td>%s - %s</td><td align=\"right\">%5.0f</td><td align=\"right\">%5.0f</td><td align=\"right\">%2.2f</td></tr>\n", tempbuff, req->extbuff, ipused, ipfree, ((ipfree * 100)/(ipused + ipfree)));
+		IP2String(tempbuff, ntohl(cfig.dhcpRanges[rangeInd].rangeStart));
+		IP2String(extbuff, ntohl(cfig.dhcpRanges[rangeInd].rangeEnd));
+		fp += sprintf(fp, "<tr><td>%s - %s</td><td align=\"right\">%5.0f</td><td align=\"right\">%5.0f</td><td align=\"right\">%2.2f</td></tr>\n", tempbuff, extbuff, ipused, ipfree, ((ipfree * 100)/(ipused + ipfree)));
 	}
 
-	fp += sprintf_s(fp,sizeof(fp), "</table>\n</body>\n</html>");
-	memcpy((contentStart - 12), tempbuff, sprintf_s(tempbuff,sizeof(tempbuff), "%u", (fp - contentStart)));
+	fp += sprintf(fp, "</table>\n</body>\n</html>");
+	memcpy((contentStart - 12), tempbuff, sprintf(tempbuff, "%u", (fp - contentStart)));
 	req->bytes = fp - req->dp;
 
 	_beginthread(sendHTTP, 0, (void*)req);
@@ -2426,175 +2283,20 @@ void sendScopeStatus(data19 *req)
 }
 */
 
-void sendJSONStatus(data19 *req)
-{
-	// debug("sendJSONStatus");
-	char ipbuff[16];
-	char logBuff[512];
-	char tempbuff[512];
-
-	dhcpMap::iterator p;
-	//MYDWORD iip = 0;
-	data7 *dhcpEntry = NULL;
-	req->memSize = 2048 + (135 * dhcpCache.size()) + (cfig.dhcpSize * 26);
-	req->dp = (char*)calloc(1, req->memSize);
-
-	if (!req->dp)
-	{
-		sprintf_s(logBuff, sizeof(logBuff), "Memory Error");
-		logDHCPMess(logBuff, 1);
-		closesocket(req->sock);
-		free(req);
-		return;
-	}
-
-	char *fp = req->dp;
-	char *maxData = req->dp + (req->memSize - 512);
-	tm ttm;
-	gmtime_s(&ttm, &t);
-	strftime(tempbuff, sizeof(tempbuff), "%a, %d %b %Y %H:%M:%S GMT", &ttm);
-	fp += sprintf_s(fp, maxData - fp, send200, tempbuff, tempbuff);
-	char *contentStart = fp;
-	//fp += sprintf_s(fp, maxData - fp, htmlStart, htmlTitle);
-	//fp += sprintf_s(fp, maxData - fp, bodyStart, sVersionName,sVersionNumber);
-	fp += sprintf_s(fp, maxData - fp, "{\n");
-	fp += sprintf_s(fp, maxData - fp, "  \"version\":\"%s %s\",\n", sVersionName, sVersionNumber);
-	fp += sprintf_s(fp, maxData - fp, "  \"activeLeases\":[\n");
-
-	// if (cfig.dhcpRepl > t)
-	// {
-	// 	fp += sprintf_s(fp, maxData - fp, "<tr><th colspan=\"5\"><font size=\"5\"><i>Active Leases</i></font></th></tr>\n");
-	// 	fp += sprintf_s(fp, maxData - fp, "<tr><th>Mac Address</th><th>IP</th><th>Lease Expiry</th><th>Hostname (first 20 chars)</th><th>Server</th></tr>\n");
-	// }
-	// else
-	// {
-	// 	fp += sprintf_s(fp, maxData - fp, "<tr><th colspan=\"4\"><font size=\"5\"><i>Active Leases</i></font></th></tr>\n");
-	// 	fp += sprintf_s(fp, maxData - fp, "<tr><th>Mac Address</th><th>IP</th><th>Lease Expiry</th><th>Hostname (first 20 chars)</th></tr>\n");
-	// }
-	bool firstItem = true;
-	for (p = dhcpCache.begin(); kRunning && p != dhcpCache.end() && fp < maxData; p++)
-	{
-		if ((dhcpEntry = p->second) && dhcpEntry->display && dhcpEntry->expiry >= t)
-		{
-			if (!firstItem)
-			{
-				fp += sprintf_s(fp, maxData - fp, ",\n");
-			}
-			fp += sprintf_s(fp, maxData - fp, "    {");
-			fp += sprintf_s(fp, maxData - fp, "\"%s\":\"%s\", ", "mac", dhcpEntry->mapname);
-			// fp += sprintf_s(fp, maxData - fp, td200, dhcpEntry->mapname);
-			fp += sprintf_s(fp, maxData - fp, "\"%s\":\"%s\", ", "ip", IP2String(tempbuff, sizeof(tempbuff), dhcpEntry->ip));
-
-			if (dhcpEntry->expiry >= INT_MAX)
-				fp += sprintf_s(fp, maxData - fp, "\"%s\":\"%s\", ", "leaseExpiry", "Infinity");
-			else
-			{
-				tm ttm;
-				localtime_s(&ttm, &dhcpEntry->expiry);
-				strftime(tempbuff, sizeof(tempbuff), "%d-%b-%y %X", &ttm);
-				fp += sprintf_s(fp, maxData - fp, "\"%s\":\"%s\", ", "leaseExpiry", tempbuff);
-			}
-
-			if (dhcpEntry->hostname[0])
-			{
-				strcpy_s(tempbuff, sizeof(tempbuff), dhcpEntry->hostname);
-				tempbuff[20] = 0;
-				fp += sprintf_s(fp, maxData - fp, "\"%s\":\"%s\"", "hostname", tempbuff);
-			}
-			else
-				fp += sprintf_s(fp, maxData - fp, "\"%s\":\"%s\"", "hostname", "");
-
-			if (cfig.dhcpRepl > t)
-			{
-				if (dhcpEntry->local && cfig.replication == 1)
-					fp += sprintf_s(fp, maxData - fp, ", \"%s\":\"%s\"", "server", "Primary");
-				else if (dhcpEntry->local && cfig.replication == 2)
-					fp += sprintf_s(fp, maxData - fp, ", \"%s\":\"%s\"", "server", "Secondary");
-				else if (cfig.replication == 1)
-					fp += sprintf_s(fp, maxData - fp, ", \"%s\":\"%s\"", "server", "Secondary");
-				else
-					fp += sprintf_s(fp, maxData - fp, ", \"%s\":\"%s\"", "server", "Primary");
-			}
-
-			fp += sprintf_s(fp, maxData - fp, "}");
-			firstItem = false;
-		}
-	}
-
-	fp += sprintf_s(fp, maxData - fp, "  ],\n");
-	fp += sprintf_s(fp, maxData - fp, "  \"freeDynamicLeases\": [\n");
-	// fp += sprintf_s(fp, maxData - fp, "<tr><td><b>DHCP Range</b></td><td align=\"right\"><b>Available Leases</b></td><td align=\"right\"><b>Free Leases</b></td></tr>\n");
-	firstItem = true;
-	for (char rangeInd = 0; kRunning && rangeInd < cfig.rangeCount && fp < maxData; rangeInd++)
-	{
-		float ipused = 0;
-		float ipfree = 0;
-		int ind = 0;
-
-		for (MYDWORD iip = cfig.dhcpRanges[(unsigned int)rangeInd].rangeStart; iip <= cfig.dhcpRanges[(unsigned int)rangeInd].rangeEnd; iip++, ind++)
-		{
-			if (cfig.dhcpRanges[(unsigned int)rangeInd].expiry && cfig.dhcpRanges[(unsigned int)rangeInd].expiry[ind] < t)
-				ipfree++;
-			else if (cfig.dhcpRanges[(unsigned int)rangeInd].dhcpEntry && cfig.dhcpRanges[(unsigned int)rangeInd].dhcpEntry[ind] && !(cfig.dhcpRanges[(unsigned int)rangeInd].dhcpEntry[ind]->fixed))
-				ipused++;
-		}
-
-		IP2String(tempbuff, sizeof(tempbuff), ntohl(cfig.dhcpRanges[(unsigned int)rangeInd].rangeStart));
-		IP2String(ipbuff, sizeof(ipbuff), ntohl(cfig.dhcpRanges[(unsigned int)rangeInd].rangeEnd));
-		if (!firstItem)
-		{
-			fp += sprintf_s(fp, maxData - fp, ",\n");
-		}
-		fp += sprintf_s(fp, maxData - fp, "  {\"rangeStart\":\"%s\", \"rangeEnd\":\"%s\", \"availableLeases\":%5.0f, \"freeLeases\":%5.0f}", tempbuff, ipbuff, (ipused + ipfree), ipfree);
-		//fp += sprintf_s(fp, maxData - fp, "<tr><td>%s - %s</td><td align=\"right\">%5.0f</td><td align=\"right\">%5.0f</td></tr>\n", tempbuff, ipbuff, (ipused + ipfree), ipfree);
-		firstItem = false;
-	}
-
-	fp += sprintf_s(fp, maxData - fp, "  ],\n");
-	fp += sprintf_s(fp, maxData - fp, "  \"freeStaticLeases\": [\n");
-
-	MYBYTE colNum = 0;
-	firstItem = true;
-	for (p = dhcpCache.begin(); kRunning && p != dhcpCache.end() && fp < maxData; p++)
-	{
-		if ((dhcpEntry = p->second) && dhcpEntry->fixed && dhcpEntry->expiry < t)
-		{
-			if (!firstItem)
-			{
-				fp += sprintf_s(fp, maxData - fp, ",\n");
-			}
-			fp += sprintf_s(fp, maxData - fp, "    {\"%s\":\"%s\", ", "mac", dhcpEntry->mapname);
-			fp += sprintf_s(fp, maxData - fp, "\"%s\":\"%s\"}", "ip", IP2String(tempbuff, sizeof(tempbuff), dhcpEntry->ip));
-			firstItem = false;
-			}
-			}
-
-	fp += sprintf_s(fp, maxData - fp, "  ],\n");
-
-	fp += sprintf_s(fp, maxData - fp, "  \"adblock\": {\n");
-	fp += sprintf_s(fp, maxData - fp, "    \"trackerBlocks\": %u\n",adBlockCounter);
-	fp += sprintf_s(fp, maxData - fp, "  }\n");
-
-	fp += sprintf_s(fp, maxData - fp, "}\n");
-	MYBYTE x = sprintf_s(tempbuff, sizeof(tempbuff), "%u", (fp - contentStart));
-	memcpy((contentStart - 12), tempbuff, x);
-	req->bytes = fp - req->dp;
-
-	_beginthread(sendHTTP, 0, (void*)req);
-	return;
-}
-
+/*
 void __cdecl sendHTTP(void *lpParam)
 {
 	data19 *req = (data19*)lpParam;
 
-	//sprintf_s(logBuff, sizeof(logBuff), "sendHTTP memsize=%d bytes=%d", req->memSize, req->bytes);
+	//sprintf(logBuff, "sendHTTP memsize=%d bytes=%d", req->memSize, req->bytes);
 	//(logBuff);
 
 	char *dp = req->dp;
 	timeval tv1;
 	fd_set writefds1;
+	char header[16];
 	int sent = 0;
+	byte sendheader = true;
 
 	while (kRunning && req->bytes > 0)
 	{
@@ -2603,18 +2305,37 @@ void __cdecl sendHTTP(void *lpParam)
 		FD_ZERO(&writefds1);
 		FD_SET(req->sock, &writefds1);
 
-		if (0 < select((int)(req->sock + 1), NULL, &writefds1, NULL, &tv1))
+		if (select((req->sock + 1), NULL, &writefds1, NULL, &tv1))
 		{
-			if (req->bytes > 1024)
-				sent  = send(req->sock, dp, 1024, 0);
-			else
-				sent  = send(req->sock, dp, req->bytes, 0);
-
-			if (sent < 0)
+			if (sendheader)
 			{
-				errno = WSAGetLastError();
+				char send200[] = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n";
+				send(req->sock, send200, strlen(send200), 0);
+				sendheader = false;
+			}
+			else if (req->bytes > 1024)
+			{
+				sprintf(header, "\r\n%04x\r\n", 1024);
+				send(req->sock, header, 8, 0);
+				sent  = send(req->sock, dp, 1024, 0);
+			}
+			else if (req->bytes > 0)
+			{
+				sprintf(header, "\r\n%04x\r\n", req->bytes);
+				send(req->sock, header, 8, 0);
+				sent  = send(req->sock, dp, req->bytes, 0);
+			}
+			else
+			{
+				sprintf(header, "\r\n%04x\r\n", 0);
+				send(req->sock, header, 8, 0);
 				break;
 			}
+
+			errno = WSAGetLastError();
+
+			if (errno || sent < 0)
+				break;
 
 			dp += sent;
 			req->bytes -= sent;
@@ -2622,7 +2343,123 @@ void __cdecl sendHTTP(void *lpParam)
 		else
 			break;
 	}
+	//Sleep(10*1000);
+	//shutdown(req->sock, 2);
+	closesocket(req->sock);
+	free(req->dp);
+	free(req);
+	_endthread();
+	return;
+}
+*/
 
+/*
+void __cdecl sendHTTP(void *lpParam)
+{
+	data19 *req = (data19*)lpParam;
+
+	//sprintf(logBuff, "sendHTTP memsize=%d bytes=%d", req->memSize, req->bytes);
+	//(logBuff);
+
+	char *dp = req->dp;
+	timeval tv1;
+	fd_set writefds1;
+	int sent = 0;
+	bool sendheader = true;
+
+	while (kRunning && req->bytes > 0)
+	{
+		tv1.tv_sec = 5;
+		tv1.tv_usec = 0;
+		FD_ZERO(&writefds1);
+		FD_SET(req->sock, &writefds1);
+
+		if (select((req->sock + 1), NULL, &writefds1, NULL, &tv1))
+		{
+			if (sendheader)
+			{
+				char send200[] = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n";
+				send(req->sock, send200, strlen(send200), 0);
+				sendheader = false;
+			}
+			else if (req->bytes > 1024)
+				sent  = send(req->sock, dp, 1024, 0);
+			else if (req->bytes > 0)
+				sent  = send(req->sock, dp, req->bytes, 0);
+			else
+				break;
+
+			errno = WSAGetLastError();
+
+			if (errno || sent < 0)
+				break;
+
+			dp += sent;
+			req->bytes -= sent;
+		}
+		else
+			break;
+	}
+	//Sleep(10*1000);
+	//shutdown(req->sock, 2);
+	closesocket(req->sock);
+	free(req->dp);
+	free(req);
+	_endthread();
+	return;
+}
+*/
+
+void __cdecl sendHTTP(void *lpParam)
+{
+	data19 *req = (data19*)lpParam;
+
+	//sprintf(logBuff, "sendHTTP memsize=%d bytes=%d", req->memSize, req->bytes);
+	//(logBuff);
+
+	char *dp = req->dp;
+	timeval tv1;
+	fd_set writefds1;
+	int sent = 0;
+	bool sendheader = true;
+
+	while (kRunning && req->bytes > 0)
+	{
+		tv1.tv_sec = 5;
+		tv1.tv_usec = 0;
+		FD_ZERO(&writefds1);
+		FD_SET(req->sock, &writefds1);
+
+		if (select((req->sock + 1), NULL, &writefds1, NULL, &tv1))
+		{
+			if (sendheader)
+			{
+				char send200[] = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\nContent-Length: %i\r\n\r\n";
+				char header[256];
+				sprintf(header, send200, req->bytes);
+				send(req->sock, header, strlen(header), 0);
+				sendheader = false;
+			}
+			else if (req->bytes > 1024)
+				sent  = send(req->sock, dp, 1024, 0);
+			else if (req->bytes > 0)
+				sent  = send(req->sock, dp, req->bytes, 0);
+			else
+				break;
+
+			errno = WSAGetLastError();
+
+			if (errno || sent < 0)
+				break;
+
+			dp += sent;
+			req->bytes -= sent;
+		}
+		else
+			break;
+	}
+	//Sleep(10*1000);
+	//shutdown(req->sock, 2);
 	closesocket(req->sock);
 	free(req->dp);
 	free(req);
@@ -2630,18 +2467,14 @@ void __cdecl sendHTTP(void *lpParam)
 	return;
 }
 
-void procTCP(dnsRequest *req)
+void procTCP(data5 *req)
 {
 	//debug("procTCP");
 
 	char logBuff[512];
 	req->ling.l_onoff = 1; //0 = off (l_linger ignored), nonzero = on
 	req->ling.l_linger = 10; //0 = discard data, nonzero = wait for data sent
-	if (SOCKET_ERROR == setsockopt(req->sock, SOL_SOCKET, SO_LINGER, (const char*)&req->ling, sizeof(req->ling)))
-	{
-		sprintf_s(logBuff, sizeof(logBuff), "Failed to set SO_LINGER on tcp socket");
-		logDHCPMess(logBuff, 1);
-	}
+	setsockopt(req->sock, SOL_SOCKET, SO_LINGER, (const char*)&req->ling, sizeof(req->ling));
 
 	errno = 0;
 	req->bytes = recvTcpDnsMess(req->raw, req->sock, sizeof(req->raw));
@@ -2649,13 +2482,13 @@ void procTCP(dnsRequest *req)
 
 	if (req->bytes < 2)
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "Error Getting TCP DNS Message");
+		sprintf(logBuff, "Error Getting TCP DNS Message");
 		logDNSMess(logBuff, 1);
 		closesocket(req->sock);
 		return;
 	}
 
-	//MYWORD pktSize = fUShort(req->raw);
+	MYWORD pktSize = fUShort(req->raw);
 	req->dp = req->raw + 2;
 	req->dnsp = (dnsPacket*)(req->dp);
 
@@ -2667,7 +2500,7 @@ void procTCP(dnsRequest *req)
 
 	if (!findServer(network.allServers, MAX_SERVERS, clientIP) && !findServer(cfig.zoneServers, MAX_TCP_CLIENTS, clientIP) && !findServer(&cfig.zoneServers[2], MAX_TCP_CLIENTS - 2, clientIP))
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "DNS TCP Query, Access Denied");
+		sprintf(logBuff, "DNS TCP Query, Access Denied");
 		logTCPMess(req, logBuff, 1);
 		addRRError(req, RCODE_REFUSED);
 		sendTCPmess(req);
@@ -2677,7 +2510,7 @@ void procTCP(dnsRequest *req)
 
 	if (ntohs(req->dnsp->header.qdcount) != 1 || ntohs(req->dnsp->header.ancount))
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "DNS Query Format Error");
+		sprintf(logBuff, "DNS Query Format Error");
 		logTCPMess(req, logBuff, 1);
 		addRRError(req, RCODE_FORMATERROR);
 		sendTCPmess(req);
@@ -2690,23 +2523,23 @@ void procTCP(dnsRequest *req)
 		switch (req->dnsp->header.opcode)
 		{
 			case OPCODE_INVERSE_QUERY:
-				sprintf_s(logBuff, sizeof(logBuff), "Inverse query not supported");
+				sprintf(logBuff, "Inverse query not supported");
 				break;
 
 			case OPCODE_SRVR_STAT_REQ:
-				sprintf_s(logBuff, sizeof(logBuff), "Server Status Request not supported");
+				sprintf(logBuff, "Server Status Request not supported");
 				break;
 
 			case OPCODE_NOTIFY:
-				sprintf_s(logBuff, sizeof(logBuff), "Notify not supported");
+				sprintf(logBuff, "Notify not supported");
 				break;
 
 			case OPCODE_DYNAMIC_UPDATE:
-				sprintf_s(logBuff, sizeof(logBuff), "Dynamic Update not needed/supported by Dual Server");
+				sprintf(logBuff, "Dynamic Update not needed/supported by Dual Server");
 				break;
 
 			default:
-				sprintf_s(logBuff, sizeof(logBuff), "OpCode %u not supported", req->dnsp->header.opcode);
+				sprintf(logBuff, "OpCode %u not supported", req->dnsp->header.opcode);
 		}
 
 		logTCPMess(req, logBuff, 1);
@@ -2719,7 +2552,7 @@ void procTCP(dnsRequest *req)
 	for (int i = 1; i <= ntohs(req->dnsp->header.qdcount); i++)
 	{
 		req->dp += fQu(req->query, req->dnsp, req->dp);
-		req->dnsType = (unsigned char)fUShort(req->dp);
+		req->dnsType = fUShort(req->dp);
 		req->dp += 2;
 		req->qclass = fUShort(req->dp);
 		req->dp += 2;
@@ -2727,7 +2560,7 @@ void procTCP(dnsRequest *req)
 
 	if (req->qclass != DNS_CLASS_IN)
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "DNS Class %u not supported", req->qclass);
+		sprintf(logBuff, "DNS Class %u not supported", req->qclass);
 		logTCPMess(req, logBuff, 1);
 		addRRError(req, RCODE_NOTIMPL);
 		sendTCPmess(req);
@@ -2737,7 +2570,7 @@ void procTCP(dnsRequest *req)
 
 	if (!req->dnsType)
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "missing query type");
+		sprintf(logBuff, "missing query type");
 		logTCPMess(req, logBuff, 1);
 		addRRError(req, RCODE_FORMATERROR);
 		sendTCPmess(req);
@@ -2745,10 +2578,10 @@ void procTCP(dnsRequest *req)
 		return;
 	}
 
-	strcpy_s(req->cname, sizeof(req->cname), req->query);
-	strcpy_s(req->mapname, sizeof(req->mapname), req->query);
+	strcpy(req->cname, req->query);
+	strcpy(req->mapname, req->query);
 	myLower(req->mapname);
-	req->qLen = (unsigned short)strlen(req->cname);
+	req->qLen = strlen(req->cname);
 	req->qType = makeLocal(req->mapname);
 
 	if (req->qType == QTYPE_A_EXT && req->qLen > cfig.zLen)
@@ -2763,7 +2596,7 @@ void procTCP(dnsRequest *req)
 	{
 		addRRError(req, RCODE_NOTIMPL);
 		sendTCPmess(req);
-		sprintf_s(logBuff, sizeof(logBuff), "%s,  Query Type not supported", strquery(req));
+		sprintf(logBuff, "%s,  Query Type not supported", strquery(req));
 		logTCPMess(req, logBuff, 1);
 		closesocket(req->sock);
 		return;
@@ -2772,14 +2605,14 @@ void procTCP(dnsRequest *req)
 	{
 		addRRError(req, RCODE_NOTAUTH);
 		sendTCPmess(req);
-		sprintf_s(logBuff, sizeof(logBuff), "Server is not authority for zone %s", req->query);
+		sprintf(logBuff, "Server is not authority for zone %s", req->query);
 		logTCPMess(req, logBuff, 1);
 	}
 	else if (cfig.expireTime < t)
 	{
 		addRRError(req, RCODE_NOTZONE);
 		sendTCPmess(req);
-		sprintf_s(logBuff, sizeof(logBuff), "Zone %s expired", req->query);
+		sprintf(logBuff, "Zone %s expired", req->query);
 		logTCPMess(req, logBuff, 1);
 	}
 	else
@@ -2792,9 +2625,9 @@ void procTCP(dnsRequest *req)
 				sendTCPmess(req);
 
 				if (req->dnsp->header.ancount)
-					sprintf_s(logBuff, sizeof(logBuff), "SOA Sent for zone %s", req->query);
+					sprintf(logBuff, "SOA Sent for zone %s", req->query);
 				else
-					sprintf_s(logBuff, sizeof(logBuff), "%s not found", strquery(req));
+					sprintf(logBuff, "%s not found", strquery(req));
 
 				logTCPMess(req, logBuff, 2);
 				break;
@@ -2806,9 +2639,9 @@ void procTCP(dnsRequest *req)
 				sendTCPmess(req);
 
 				if (req->dnsp->header.ancount)
-					sprintf_s(logBuff, sizeof(logBuff), "NS Sent for zone %s", req->query);
+					sprintf(logBuff, "NS Sent for zone %s", req->query);
 				else
-					sprintf_s(logBuff, sizeof(logBuff), "%s not found", strquery(req));
+					sprintf(logBuff, "%s not found", strquery(req));
 
 				logTCPMess(req, logBuff, 2);
 				break;
@@ -2902,7 +2735,7 @@ void procTCP(dnsRequest *req)
 					if (sendTCPmess(req))
 					{
 						records++;
-						sprintf_s(logBuff, sizeof(logBuff), "Zone %s with %d RRs Sent", req->query, records);
+						sprintf(logBuff, "Zone %s with %d RRs Sent", req->query, records);
 						logTCPMess(req, logBuff, 2);
 					}
 				}
@@ -2969,7 +2802,7 @@ void procTCP(dnsRequest *req)
 					if (sendTCPmess(req))
 					{
 						records++;
-						sprintf_s(logBuff, sizeof(logBuff), "Zone %s with %d RRs Sent", req->query, records);
+						sprintf(logBuff, "Zone %s with %d RRs Sent", req->query, records);
 						logTCPMess(req, logBuff, 2);
 					}
 				}
@@ -2978,13 +2811,13 @@ void procTCP(dnsRequest *req)
 					addRRNone(req);
 					req->dnsp->header.rcode = RCODE_NOTAUTH;
 					sendTCPmess(req);
-					sprintf_s(logBuff, sizeof(logBuff), "Server is not authority for zone %s", req->query);
+					sprintf(logBuff, "Server is not authority for zone %s", req->query);
 					logTCPMess(req, logBuff, 1);
 				}
 				break;
 
 				default:
-					sprintf_s(logBuff, sizeof(logBuff), "%s Query type not supported", strquery(req));
+					sprintf(logBuff, "%s Query type not supported", strquery(req));
 					logTCPMess(req, logBuff, 1);
 					addRRError(req, RCODE_NOTIMPL);
 					sendTCPmess(req);
@@ -2994,7 +2827,7 @@ void procTCP(dnsRequest *req)
 	closesocket(req->sock);
 }
 
-MYWORD sendTCPmess(dnsRequest *req)
+MYWORD sendTCPmess(data5 *req)
 {
 	char logBuff[256];
 	timeval tv1;
@@ -3005,31 +2838,31 @@ MYWORD sendTCPmess(dnsRequest *req)
 	tv1.tv_sec = 5;
 	tv1.tv_usec = 0;
 
-	if (0 < select((int)(req->sock + 1), NULL, &writefds, NULL, &tv1))
+	if (select((req->sock + 1), NULL, &writefds, NULL, &tv1) > 0)
 	{
 		errno = 0;
 		req->dnsp->header.ra = 0;
-		req->bytes = (int)(req->dp - req->raw);
-		putUnsignedShort(req->raw, req->bytes - 2);
+		req->bytes = req->dp - req->raw;
+		pUShort(req->raw, req->bytes - 2);
 
-		if (req->bytes == send(req->sock, req->raw, req->bytes, 0))
+		if (req->bytes == send(req->sock, req->raw, req->bytes, 0) && !WSAGetLastError())
 			return 1;
 	}
 
 	if (verbatim || cfig.dnsLogLevel >= 1)
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "Failed to send %s", strquery(req));
+		sprintf(logBuff, "Failed to send %s", strquery(req));
 		logTCPMess(req, logBuff, 1);
 	}
 
 	return 0;
 }
 
-MYWORD gDNSMessage(dnsRequest *req, MYBYTE sockInd)
+MYWORD gdnmess(data5 *req, MYBYTE sockInd)
 {
-	//debug("gDNSMessage");
+	//debug("gdnmess");
 	char logBuff[512];
-	memset(req, 0, sizeof(dnsRequest));
+	memset(req, 0, sizeof(data5));
 	req->sockLen = sizeof(req->remote);
 	errno = 0;
 
@@ -3040,11 +2873,10 @@ MYWORD gDNSMessage(dnsRequest *req, MYBYTE sockInd)
 	                      (sockaddr*)&req->remote,
 	                      &req->sockLen);
 
-	if (req->bytes <= 0)
-	{
-		if (req->bytes == SOCKET_ERROR) errno = WSAGetLastError();
+	errno = WSAGetLastError();
+
+	if (errno || req->bytes <= 0)
 		return 0;
-	}
 
 	req->sockInd = sockInd;
 	req->dnsp = (dnsPacket*)req->raw;
@@ -3076,7 +2908,7 @@ MYWORD gDNSMessage(dnsRequest *req, MYBYTE sockInd)
 					else
 						cfig.dnsRepl = t + cfig.refresh + cfig.retry + cfig.retry;
 
-					sprintf_s(cfig.nsS,sizeof(cfig.nsS), "%s.%s", localBuff, cfig.zone);
+					sprintf(cfig.nsS, "%s.%s", localBuff, cfig.zone);
 
 					if (isLocal(ip))
 						add2Cache(localBuff, ip, INT_MAX, CTYPE_SERVER_A_AUTH, CTYPE_SERVER_PTR_AUTH);
@@ -3101,23 +2933,23 @@ MYWORD gDNSMessage(dnsRequest *req, MYBYTE sockInd)
 			switch (req->dnsp->header.opcode)
 			{
 				case OPCODE_INVERSE_QUERY:
-					sprintf_s(logBuff, sizeof(logBuff), "Inverse query not supported");
+					sprintf(logBuff, "Inverse query not supported");
 					break;
 
 				case OPCODE_SRVR_STAT_REQ:
-					sprintf_s(logBuff, sizeof(logBuff), "Server Status Request not supported");
+					sprintf(logBuff, "Server Status Request not supported");
 					break;
 
 				case OPCODE_NOTIFY:
-					sprintf_s(logBuff, sizeof(logBuff), "Notify not supported");
+					sprintf(logBuff, "Notify not supported");
 					break;
 
 				case OPCODE_DYNAMIC_UPDATE:
-					sprintf_s(logBuff, sizeof(logBuff), "Dynamic Update not needed/supported by Dual Server");
+					sprintf(logBuff, "Dynamic Update not needed/supported by Dual Server");
 					break;
 
 				default:
-					sprintf_s(logBuff, sizeof(logBuff), "OpCode %d not supported", req->dnsp->header.opcode);
+					sprintf(logBuff, "OpCode %d not supported", req->dnsp->header.opcode);
 			}
 
 			logDNSMess(req, logBuff, 1);
@@ -3131,7 +2963,7 @@ MYWORD gDNSMessage(dnsRequest *req, MYBYTE sockInd)
 	{
 		if (verbatim || cfig.dnsLogLevel >= 1)
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "DNS Query Format Error");
+			sprintf(logBuff, "DNS Query Format Error");
 			logDNSMess(req, logBuff, 1);
 		}
 
@@ -3144,7 +2976,7 @@ MYWORD gDNSMessage(dnsRequest *req, MYBYTE sockInd)
 	for (int i = 1; i <= ntohs(req->dnsp->header.qdcount); i++)
 	{
 		req->dp += fQu(req->query, req->dnsp, req->dp);
-		req->dnsType = (unsigned char)fUShort(req->dp);
+		req->dnsType = fUShort(req->dp);
 		req->dp += 2;
 		req->qclass = fUShort(req->dp);
 		req->dp += 2;
@@ -3156,7 +2988,7 @@ MYWORD gDNSMessage(dnsRequest *req, MYBYTE sockInd)
 	{
 		if (verbatim || cfig.dnsLogLevel >= 1)
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "DNS Class %d not supported", req->qclass);
+			sprintf(logBuff, "DNS Class %d not supported", req->qclass);
 			logDNSMess(req, logBuff, 1);
 		}
 		addRRError(req, RCODE_NOTIMPL);
@@ -3167,7 +2999,7 @@ MYWORD gDNSMessage(dnsRequest *req, MYBYTE sockInd)
 	{
 		if (verbatim || cfig.dnsLogLevel >= 1)
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "missing query type");
+			sprintf(logBuff, "missing query type");
 			logDNSMess(req, logBuff, 1);
 		}
 
@@ -3190,7 +3022,7 @@ MYWORD gDNSMessage(dnsRequest *req, MYBYTE sockInd)
 	if (getRangeInd(ip) >= 0)
 		return req->bytes;
 
-	if (findEntry(IP2String(req->cname, sizeof(req->cname), iip), DNS_TYPE_PTR, CTYPE_LOCAL_PTR_NAUTH))
+	if (findEntry(IP2String(req->cname, iip), DNS_TYPE_PTR, CTYPE_LOCAL_PTR_NAUTH))
 		return req->bytes;
 
 	if (findServer(network.allServers, MAX_SERVERS, ip))
@@ -3198,7 +3030,7 @@ MYWORD gDNSMessage(dnsRequest *req, MYBYTE sockInd)
 
 	if (verbatim || cfig.dnsLogLevel >= 1)
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "DNS UDP Query, Access Denied");
+		sprintf(logBuff, "DNS UDP Query, Access Denied");
 		logDNSMess(req, logBuff, 1);
 	}
 
@@ -3206,7 +3038,7 @@ MYWORD gDNSMessage(dnsRequest *req, MYBYTE sockInd)
 	return 0;
 }
 
-MYWORD scanloc(dnsRequest *req)
+MYWORD scanloc(data5 *req)
 {
 	//debug("scanloc");
 	char logBuff[512];
@@ -3214,13 +3046,18 @@ MYWORD scanloc(dnsRequest *req)
 	if (!req->query[0])
 		return 0;
 
-	strcpy_s(req->cname, sizeof(req->cname),req->query);
-	strcpy_s(req->mapname, sizeof(req->mapname), req->query);
+	strcpy(req->mapname, req->query);
 	myLower(req->mapname);
 	req->qType = makeLocal(req->mapname);
 	//MYDWORD ip = req->remote.sin_addr.s_addr;
-	//sprintf_s(logBuff, sizeof(logBuff), "qType=%u dnsType=%u query=%s mapname=%s", req->qType, req->dnsType, req->query, req->mapname);
+	//sprintf(logBuff, "qType=%u dnsType=%u query=%s mapname=%s", req->qType, req->dnsType, req->query, req->mapname);
 	//logMess(logBuff, 2);
+
+	//strcpy(req->cname, req->query);
+	if (req->qType == QTYPE_A_BARE)
+		sprintf(req->cname, "%s.%s", req->query, cfig.zone);
+	else
+		strcpy(req->cname, req->query);
 
 	switch (req->qType)
 	{
@@ -3285,7 +3122,9 @@ MYWORD scanloc(dnsRequest *req)
 						}
 						else if (req->qType == QTYPE_A_ZONE)
 						{
-							cfig.dnsCheck = t;
+							if (cfig.replication == 1 && req->remote.sin_addr.s_addr == cfig.zoneServers[1])
+								cfig.dnsCheck = t;
+
 							addRRNone(req);
 							addRRSOA(req);
 							return 1;
@@ -3310,7 +3149,7 @@ MYWORD scanloc(dnsRequest *req)
 					{
 						if (verbatim || cfig.dnsLogLevel)
 						{
-							sprintf_s(logBuff, sizeof(logBuff), "%s, DNS Query Type not supported", strquery(req));
+							sprintf(logBuff, "%s, DNS Query Type not supported", strquery(req));
 							logDNSMess(req, logBuff, 1);
 						}
 						addRRNone(req);
@@ -3329,7 +3168,7 @@ MYWORD scanloc(dnsRequest *req)
 
 	for (int m = 0; m < 3; m++)
 	{
-		req->iterBegin = dnsCache[currentInd].find(setMapName(req->tempname, sizeof(req->tempname), req->mapname, req->dnsType));
+		req->iterBegin = dnsCache[currentInd].find(setMapName(req->tempname, req->mapname, req->dnsType));
 
 		if (req->iterBegin == dnsCache[currentInd].end())
 			break;
@@ -3398,16 +3237,16 @@ MYWORD scanloc(dnsRequest *req)
 			case CTYPE_EXT_CNAME:
 
 				if (!cache->hostname[0])
-					strcpy_s(req->cname, sizeof(req->cname), cfig.zone);
+					strcpy(req->cname, cfig.zone);
 				else if (strchr(cache->hostname, '.'))
-					strcpy_s(req->cname, sizeof(req->cname), cache->hostname);
+					strcpy(req->cname, cache->hostname);
 				else
-					sprintf_s(req->cname,sizeof(req->cname), "%s.%s", cache->hostname, cfig.zone);
+					sprintf(req->cname, "%s.%s", cache->hostname, cfig.zone);
 
-				//sprintf_s(logBuff, sizeof(logBuff), "cType=%u, name=%s, hostname=%s", cache->cType, cache->name, cache->hostname);
+				//sprintf(logBuff, "cType=%u, cache->name=%s, cname=%s, hostname=%s", cache->cType, cache->name, req->cname, cache->hostname);
 				//logMess(logBuff, 2);
 
-				strcpy_s(req->mapname, sizeof(req->mapname), cache->hostname);
+				strcpy(req->mapname, cache->hostname);
 				myLower(req->mapname);
 				continue;
 
@@ -3416,7 +3255,7 @@ MYWORD scanloc(dnsRequest *req)
 		}
 	}
 
-	//sprintf_s(logBuff, sizeof(logBuff), "cType=%u,dnsType=%u,query=%s,cname=%s", req->cType, req->dnsType, req->query, req->cname);
+	//sprintf(logBuff, "cType=%u,dnsType=%u,query=%s,cname=%s", req->cType, req->dnsType, req->query, req->cname);
 	//logMess(logBuff, 2);
 
 	if (req->dnsType == DNS_TYPE_A && cfig.wildHosts[0].wildcard[0])
@@ -3440,10 +3279,10 @@ MYWORD scanloc(dnsRequest *req)
 		//debug(req->cname);
 		req->qType = makeLocal(req->cname);
 		req->dp = &req->dnsp->data;
-		req->dp += putQueryString(req->dp, req->cname, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_TYPE_A, sizeof(req->raw) - (req->dp - req->raw));
-		req->dp += putUnsignedShort(req->dp, DNS_CLASS_IN, sizeof(req->raw) - (req->dp - req->raw));
-		req->bytes = (int)(req->dp - req->raw);
+		req->dp += pQu(req->dp, req->cname);
+		req->dp += pUShort(req->dp, DNS_TYPE_A);
+		req->dp += pUShort(req->dp, DNS_CLASS_IN);
+		req->bytes = req->dp - req->raw;
 		return 0;
 	}
 	else if (req->qType == QTYPE_A_BARE || req->qType == QTYPE_A_ZONE || req->qType == QTYPE_P_ZONE)
@@ -3458,19 +3297,19 @@ MYWORD scanloc(dnsRequest *req)
 	return 0;
 }
 
-MYWORD fDNSMessage(dnsRequest *req)
+MYWORD fdnmess(data5 *req)
 {
-	//debug("fDNSMessage");
+	//debug("fdnmess");
 	//debug(req->cname);
 	//printf("before qType=%d %d\n", req->qType, QTYPE_A_SUBZONE);
 	char ipbuff[32];
 	char logBuff[512];
-	req->qLen = (unsigned short)strlen(req->cname);
+	req->qLen = strlen(req->cname);
 	MYBYTE zoneDNS;
 	int nRet = -1;
 
 	char mapname[8];
-	sprintf_s(mapname,sizeof(mapname), "%u", req->dnsp->header.xid);
+	sprintf(mapname, "%u", req->dnsp->header.xid);
 	data7 *queue = findQueue(mapname);
 
 	for (zoneDNS = 0; zoneDNS < MAX_COND_FORW && cfig.dnsRoutes[zoneDNS].zLen; zoneDNS++)
@@ -3494,7 +3333,7 @@ MYWORD fDNSMessage(dnsRequest *req)
 			{
 				req->addr.sin_family = AF_INET;
 				req->addr.sin_addr.s_addr = cfig.dnsRoutes[zoneDNS].dns[cfig.dnsRoutes[zoneDNS].currentDNS];
-				req->addr.sin_port = htons(dnsForwardPort);
+				req->addr.sin_port = htons(IPPORT_DNS);
 				errno = 0;
 
 				nRet = sendto(network.forwConn.sock,
@@ -3504,12 +3343,13 @@ MYWORD fDNSMessage(dnsRequest *req)
 							  (sockaddr*)&req->addr,
 							  sizeof(req->addr));
 
-				if (nRet <= 0)
+				errno = WSAGetLastError();
+
+				if (errno || nRet <= 0)
 				{
-					if (req->bytes == SOCKET_ERROR) errno = WSAGetLastError();
 					if (verbatim || cfig.dnsLogLevel)
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "Error Forwarding UDP DNS Message to Conditional Forwarder %s", IP2String(ipbuff, sizeof(ipbuff), req->addr.sin_addr.s_addr));
+						sprintf(logBuff, "Error Forwarding UDP DNS Message to Conditional Forwarder %s", IP2String(ipbuff, req->addr.sin_addr.s_addr));
 						logDNSMess(req, logBuff, 1);
 						addRRNone(req);
 						req->dnsp->header.rcode = RCODE_SERVERFAIL;
@@ -3524,7 +3364,7 @@ MYWORD fDNSMessage(dnsRequest *req)
 				{
 					if (verbatim || cfig.dnsLogLevel >= 2)
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "%s forwarded to Conditional Forwarder %s", strquery(req), IP2String(ipbuff, sizeof(ipbuff), cfig.dnsRoutes[zoneDNS].dns[cfig.dnsRoutes[zoneDNS].currentDNS]));
+						sprintf(logBuff, "%s forwarded to Conditional Forwarder %s", strquery(req), IP2String(ipbuff, cfig.dnsRoutes[zoneDNS].dns[cfig.dnsRoutes[zoneDNS].currentDNS]));
 						logDNSMess(req, logBuff, 2);
 					}
 				}
@@ -3536,7 +3376,7 @@ MYWORD fDNSMessage(dnsRequest *req)
 
 	if (req->qType != QTYPE_CHILDZONE)
 	{
-		//sprintf_s(logBuff, sizeof(logBuff), "after qType=%d %d", req->qType, QTYPE_CHILDZONE);
+		//sprintf(logBuff, "after qType=%d %d", req->qType, QTYPE_CHILDZONE);
 		//logMess(logBuff, 2);
 
 		if (cfig.authorized && (req->qType == QTYPE_A_LOCAL || req->qType == QTYPE_P_LOCAL))
@@ -3568,7 +3408,7 @@ MYWORD fDNSMessage(dnsRequest *req)
 			addRRNone(req);
 			if (verbatim || cfig.dnsLogLevel)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "%s is not found (recursion not desired)", strquery(req));
+				sprintf(logBuff, "%s is not found (recursion not desired)", strquery(req));
 				logDNSMess(req, logBuff, 2);
 			}
 			return 0;
@@ -3580,7 +3420,7 @@ MYWORD fDNSMessage(dnsRequest *req)
 			req->dnsp->header.ra = 0;
 			if (verbatim || cfig.dnsLogLevel)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "%s not found (recursion not available)", strquery(req));
+				sprintf(logBuff, "%s not found (recursion not available)", strquery(req));
 				logDNSMess(req, logBuff, 2);
 			}
 			return 0;
@@ -3598,7 +3438,7 @@ MYWORD fDNSMessage(dnsRequest *req)
 		{
 			req->addr.sin_family = AF_INET;
 			req->addr.sin_addr.s_addr = network.dns[network.currentDNS];
-			req->addr.sin_port = htons(dnsForwardPort);
+			req->addr.sin_port = htons(IPPORT_DNS);
 			errno = 0;
 
 			nRet = sendto(network.forwConn.sock,
@@ -3608,13 +3448,13 @@ MYWORD fDNSMessage(dnsRequest *req)
 						  (sockaddr*)&req->addr,
 						  sizeof(req->addr));
 
-			if (nRet <= 0)
-			{
+			errno = WSAGetLastError();
 
-				if (req->bytes == SOCKET_ERROR) errno = WSAGetLastError();
+			if (errno || nRet <= 0)
+			{
 				if (verbatim || cfig.dnsLogLevel)
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Error forwarding UDP DNS Message to Forwarding Server %s", IP2String(ipbuff, sizeof(ipbuff), network.dns[network.currentDNS]));
+					sprintf(logBuff, "Error forwarding UDP DNS Message to Forwarding Server %s", IP2String(ipbuff, network.dns[network.currentDNS]));
 					logDNSMess(req, logBuff, 1);
 					addRRNone(req);
 					req->dnsp->header.rcode = RCODE_SERVERFAIL;
@@ -3634,7 +3474,7 @@ MYWORD fDNSMessage(dnsRequest *req)
 			{
 				if (verbatim || cfig.dnsLogLevel >= 2)
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "%s forwarded to Forwarding Server %s", strquery(req), IP2String(ipbuff, sizeof(ipbuff), network.dns[network.currentDNS]));
+					sprintf(logBuff, "%s forwarded to Forwarding Server %s", strquery(req), IP2String(ipbuff, network.dns[network.currentDNS]));
 					logDNSMess(req, logBuff, 2);
 				}
 			}
@@ -3653,7 +3493,7 @@ MYWORD fDNSMessage(dnsRequest *req)
 
 		if (queue)
 		{
-			queue->expiry = 2 + t;
+			queue->expiry = 3 + t;
 			addEntry(queue);
 		}
 		else
@@ -3661,7 +3501,7 @@ MYWORD fDNSMessage(dnsRequest *req)
 	}
 	else
 	{
-		queue->expiry = 2 + t;
+		queue->expiry = 3 + t;
 		memcpy(queue->addr, &req->remote, sizeof(req->remote));
 	}
 
@@ -3672,18 +3512,17 @@ MYWORD fDNSMessage(dnsRequest *req)
 	else
 		queue->dnsIndex = network.currentDNS;
 
-	//sprintf_s(logBuff, sizeof(logBuff), "queue created for %s", req->query);
+	//sprintf(logBuff, "queue created for %s", req->query);
 	//debug(logBuff);
 
 	return (nRet);
 }
 
-MYWORD frDNSMessage(dnsRequest *req)
+MYWORD frdnmess(data5 *req)
 {
-	//debug("frDNSMessage");
+	//debug("frdnmess");
 	char tempbuff[512];
-	if (!req) return 0;
-	memset(req, 0, sizeof(dnsRequest));
+	memset(req, 0, sizeof(data5));
 	req->sockLen = sizeof(req->remote);
 	errno = 0;
 	MYBYTE dnsType = 0;
@@ -3695,96 +3534,98 @@ MYWORD frDNSMessage(dnsRequest *req)
 	                      (sockaddr*)&req->remote,
 	                      &req->sockLen);
 
+	errno = WSAGetLastError();
 
-	if (req->bytes <= 0)
-	{
-		if (req->bytes==SOCKET_ERROR) errno = WSAGetLastError();
+	if (errno || req->bytes <= 0)
 		return 0;
-	}
 
 	req->dnsp = (dnsPacket*)req->raw;
-	if (!req->dnsp) return 0;
 	req->dp = &req->dnsp->data;
-	if (!req->dp) return 0;
 
-	for (int i = 1; i <= ntohs(req->dnsp->header.qdcount); i++)
+	if (ntohs(req->dnsp->header.qdcount) == 1)
 	{
 		req->dp += fQu(req->cname, req->dnsp, req->dp);
-		strcpy_s(req->mapname, sizeof(req->mapname), req->cname);
-		dnsType = (unsigned char)fUShort(req->dp);
+		strcpy(req->mapname, req->cname);
+		dnsType = fUShort(req->dp);
 		req->dp += 4; //type and class
+		myLower(req->mapname);
 
 		if (dnsType == DNS_TYPE_PTR)
 		{
-			myLower(req->mapname);
 			char *dp = strstr(req->mapname, arpa);
 
 			if (dp && !strcasecmp(dp, arpa))
 				*dp = 0;
 		}
 		else
+			strcpy(req->mapname, req->cname);
+
+		if ((dnsType == DNS_TYPE_A || dnsType == DNS_TYPE_ANY || dnsType == DNS_TYPE_AAAA || dnsType == DNS_TYPE_PTR) && !req->dnsp->header.rcode && !req->dnsp->header.tc && req->dnsp->header.ancount)
 		{
-			strcpy_s(req->mapname, sizeof(req->mapname), req->cname);
-			myLower(req->mapname);
-		}
-	}
+			time_t expiry = 0;
+			bool resultFound = false;
 
-	if ((dnsType == DNS_TYPE_A || dnsType == DNS_TYPE_ANY || dnsType == DNS_TYPE_AAAA || dnsType == DNS_TYPE_PTR) && !req->dnsp->header.rcode && !req->dnsp->header.tc && req->dnsp->header.ancount)
-	{
-		time_t expiry = 0;
-		bool resultFound = false;
-
-		for (int i = 1; i <= ntohs(req->dnsp->header.ancount); i++)
-		{
-			resultFound = true;
-			req->dp += fQu(tempbuff, req->dnsp, req->dp);
-			//dnsType = fUShort(req->dp);
-
-			//logDNSMess(tempbuff, 2);
-			req->dp += 4; //type and class
-
-			if (!expiry || fULong(req->dp) < (MYDWORD)expiry)
-				expiry = fULong(req->dp);
-
-			req->dp += 4; //ttl
-			int zLen = fUShort(req->dp);
-			req->dp += 2; //datalength
-			req->dp += zLen;
-		}
-
-		if (resultFound)
-		{
-			//MYWORD cacheSize = (MYWORD)(req->dp - req->raw);
-
-			if (cfig.minCache && expiry < cfig.minCache)
-				expiry = cfig.minCache;
-
-			if (cfig.maxCache && expiry > cfig.maxCache)
-				expiry = cfig.maxCache;
-
-			if (expiry < INT_MAX - t)
-				expiry += t;
-			else
-				expiry = INT_MAX;
-
-			memset(&lump, 0, sizeof(data71));
-			lump.cType = CTYPE_CACHED;
-			lump.dnsType = dnsType;
-			lump.mapname = req->mapname;
-			lump.bytes = req->bytes;
-			lump.response = (MYBYTE*)req->dnsp;
-			data7* cache = createCache(&lump);
-
-			if (cache)
+			for (int i = 1; i <= ntohs(req->dnsp->header.ancount); i++)
 			{
-				cache->expiry = expiry;
-				addEntry(cache);
+				resultFound = true;
+				req->dp += fQu(tempbuff, req->dnsp, req->dp);
+				//dnsType = fUShort(req->dp);
+
+				//logDNSMess(tempbuff, 2);
+				req->dp += 4; //type and class
+
+				if (!expiry || fULong(req->dp) < (MYDWORD)expiry)
+					expiry = fULong(req->dp);
+
+				req->dp += 4; //ttl
+				int zLen = fUShort(req->dp);
+				req->dp += 2; //datalength
+				req->dp += zLen;
+			}
+
+			if (resultFound)
+			{
+				req->iterBegin = dnsCache[currentInd].find(setMapName(req->tempname, req->mapname, dnsType));
+
+				if (req->iterBegin == dnsCache[currentInd].end())
+				{
+					MYWORD cacheSize = req->dp - req->raw;
+
+					if (cfig.minCache && expiry < cfig.minCache)
+						expiry = cfig.minCache;
+
+					if (cfig.maxCache && expiry > cfig.maxCache)
+						expiry = cfig.maxCache;
+
+					if (expiry < INT_MAX - t)
+						expiry += t;
+					else
+						expiry = INT_MAX;
+
+					memset(&lump, 0, sizeof(data71));
+					lump.cType = CTYPE_CACHED;
+					lump.dnsType = dnsType;
+					lump.mapname = req->mapname;
+					lump.bytes = req->bytes;
+					lump.response = (MYBYTE*)req->dnsp;
+					data7* cache = createCache(&lump);
+
+					if (cache)
+					{
+						cache->expiry = expiry;
+						addEntry(cache);
+					}
+				}
+				else
+				{
+					//logMess(req->mapname, 1);
+				}
 			}
 		}
 	}
 
 	char mapname[8];
-	sprintf_s(mapname,sizeof(mapname), "%u", req->dnsp->header.xid);
+	sprintf(mapname, "%u", req->dnsp->header.xid);
 	data7 *queue = findQueue(mapname);
 
 	if (queue && queue->expiry)
@@ -3816,8 +3657,9 @@ MYWORD frDNSMessage(dnsRequest *req)
 				dnsRoute->currentDNS = 1;
 		}
 
+
 		memcpy(&req->remote, queue->addr, sizeof(req->remote));
-		strcpy_s(req->query, sizeof(req->query), queue->query);
+		strcpy(req->query, queue->query);
 		req->sockInd = queue->sockInd;
 		req->dnsIndex = queue->dnsIndex;
 		req->dnsType = queue->dnsType;
@@ -3828,12 +3670,12 @@ MYWORD frDNSMessage(dnsRequest *req)
 	return 0;
 }
 
-MYWORD sDNSMessage(dnsRequest *req)
+MYWORD sdnmess(data5 *req)
 {
-	//debug("sDNSMessage");
+	//debug("sdnmess");
 
 	errno = 0;
-	req->bytes = (int)(req->dp - req->raw);
+	req->bytes = req->dp - req->raw;
 	req->bytes = sendto(network.dnsUdpConn[req->sockInd].sock,
 	                    req->raw,
 	                    req->bytes,
@@ -3841,20 +3683,17 @@ MYWORD sDNSMessage(dnsRequest *req)
 	                    (sockaddr*)&req->remote,
 	                    sizeof(req->remote));
 
+	errno = WSAGetLastError();
 
-
-	if (req->bytes <= 0)
-	{
-		if (req->bytes == SOCKET_ERROR) errno = WSAGetLastError();
+	if (errno || req->bytes <= 0)
 		return 0;
-	}
 	else
 		return req->bytes;
 }
 
 void add2Cache(char *hostname, MYDWORD ip, time_t expiry, MYBYTE aType, MYBYTE pType)
 {
-	//sprintf_s(logBuff, sizeof(logBuff), "Adding %s=%s %u", hostname,IP2String(ipbuff, sizeof(ipbuff), ip), expiry - t);
+	//sprintf(logBuff, "Adding %s=%s %u", hostname,IP2String(ipbuff, ip), expiry - t);
 	//logMess(logBuff, 1);
 
 	//memset(&lump, 0, sizeof(data71));
@@ -3869,10 +3708,9 @@ void add2Cache(char *hostname, MYDWORD ip, time_t expiry, MYBYTE aType, MYBYTE p
 
 	if (pType)
 	{
-		IP2String(tempbuff, sizeof(tempbuff), htonl(ip), DNS_TYPE_PTR);
+		IP2String(tempbuff, htonl(ip), DNS_TYPE_PTR);
 		p = dnsCache[currentInd].find(tempbuff);
 
-#if 0
 		for (; p != dnsCache[currentInd].end(); p++)
 		{
 			if (strcasecmp(p->second->mapname, tempbuff))
@@ -3884,54 +3722,22 @@ void add2Cache(char *hostname, MYDWORD ip, time_t expiry, MYBYTE aType, MYBYTE p
 				break;
 			}
 		}
-#else
-		if (p != dnsCache[currentInd].end() && !strcasecmp(p->second->hostname, hostname))
-		{
-			cache = p->second;
-		}
-#endif
+
 		if (!cache)
 		{
 			memset(&lump, 0, sizeof(data71));
 			lump.cType = pType;
 			lump.dnsType = DNS_TYPE_PTR;
-			lump.mapname = IP2String(tempbuff, sizeof(tempbuff), htonl(ip));
+			lump.mapname = IP2String(tempbuff, htonl(ip));
 			lump.hostname = hostname;
 			cache = createCache(&lump);
-/*
-			cache = (data7*)calloc(1, sizeof(data7));
-
-			if (cache)
-			{
-				cache->mapname = cloneString(tempbuff);
-				cache->hostname = cloneString(hostname);
-
-				if (!cache->mapname || !cache->hostname)
-				{
-					if (cache->mapname)
-						free(cache->mapname);
-
-					if (cache->hostname)
-						free(cache->hostname);
-
-					free(cache);
-
-					sprintf_s(logBuff, sizeof(logBuff), "Memory Allocation Error");
-					logDNSMess(logBuff, 1);
-					return;
-				}
-
-				cache->cType = pType;
-				cache->expiry = expiry;
-				addEntry(cache);
-*/
 			if (cache)
 			{
 				cache->expiry = expiry;
 				addEntry(cache);
 
 				if (cfig.replication != 2 && (pType == CTYPE_LOCAL_PTR_AUTH || pType == CTYPE_SERVER_PTR_AUTH))
-					cfig.serial2 = (unsigned int)t;
+					cfig.serial2 = t;
 			}
 		}
 		else if (cache->expiry < expiry)
@@ -3939,13 +3745,13 @@ void add2Cache(char *hostname, MYDWORD ip, time_t expiry, MYBYTE aType, MYBYTE p
 			cache->cType = pType;
 			cache->expiry = expiry;
 		}
-		//printf("Added %s=%s\n", IP2String(ipbuff, sizeof(ipbuff), ip), hostname);
+		//printf("Added %s=%s\n", IP2String(ipbuff, ip), hostname);
 	}
 
 	if (aType)
 	{
 		cache = NULL;
-		setMapName(tempbuff, sizeof(tempbuff), hostname, DNS_TYPE_A);
+		setMapName(tempbuff, hostname, DNS_TYPE_A);
 
 		p = dnsCache[currentInd].find(tempbuff);
 
@@ -3968,27 +3774,7 @@ void add2Cache(char *hostname, MYDWORD ip, time_t expiry, MYBYTE aType, MYBYTE p
 			lump.dnsType = DNS_TYPE_A;
 			lump.mapname = hostname;
 			cache = createCache(&lump);
-/*
-			cache = (data7*)calloc(1, sizeof(data7));
 
-			if (cache)
-			{
-				cache->mapname = cloneString(tempbuff);
-
-				if (!cache->mapname)
-				{
-					sprintf_s(logBuff, sizeof(logBuff), "Memory Allocation Error");
-					logDNSMess(logBuff, 1);
-					free(cache);
-					return;
-				}
-
-				cache->ip = ip;
-				cache->cType = aType;
-				cache->expiry = expiry;
-				addEntry(cache);
-			}
-*/
 			if (cache)
 			{
 				cache->ip = ip;
@@ -3996,7 +3782,7 @@ void add2Cache(char *hostname, MYDWORD ip, time_t expiry, MYBYTE aType, MYBYTE p
 				addEntry(cache);
 
 				if (cfig.replication != 2 && (aType == CTYPE_LOCAL_A || aType == CTYPE_SERVER_A_AUTH))
-					cfig.serial1 = (unsigned int)t;
+					cfig.serial1 = t;
 			}
 
 		}
@@ -4015,7 +3801,7 @@ void expireEntry(MYDWORD ip)
 	if (!ip)
 		return;
 
-	IP2String(ipbuff, sizeof(ipbuff), htonl(ip));
+	IP2String(ipbuff, htonl(ip));
 	data7 *cache = findEntry(ipbuff, DNS_TYPE_PTR, CTYPE_LOCAL_PTR_AUTH);
 
 	if (!cache)
@@ -4040,27 +3826,7 @@ void addHostNotFound(char *hostname)
 	lump.dnsType = DNS_TYPE_A;
 	lump.mapname = hostname;
 	data7 *cache = createCache(&lump);
-/*
-	data7 *cache = (data7*)calloc(1, sizeof(data7));
 
-	if (cache)
-	{
-		cache->mapname = myLower(cloneString(hostname));
-
-		if (!cache->mapname)
-		{
-			sprintf_s(logBuff, sizeof(logBuff), "Memory Allocation Error");
-			free(cache);
-			logDNSMess(logBuff, 1);
-			return;
-		}
-
-		cache->ip = 0;
-		cache->cType = CTYPE_STATIC_A_NAUTH;
-		cache->expiry = INT_MAX;
-		addEntry(cache);
-	}
-*/
 	if (cache)
 	{
 		cache->ip = 0;
@@ -4070,15 +3836,13 @@ void addHostNotFound(char *hostname)
 	}
 }
 
-char* getResult(dnsRequest *req)
+char* getResult(data5 *req)
 {
 	char buff[256];
-	if (!req) return NULL;
+
 	req->tempname[0] = 0;
-	if (!req->dnsp) return NULL;
 	char *raw = &req->dnsp->data;
-	if (!raw) return NULL;
-	//MYWORD queueIndex;
+	MYWORD queueIndex;
 
 	for (int i = 1; i <= ntohs(req->dnsp->header.qdcount); i++)
 	{
@@ -4097,9 +3861,9 @@ char* getResult(dnsRequest *req)
 		raw += 2; //datalength
 
 		if (type == DNS_TYPE_A)
-			return IP2String(req->tempname, sizeof(req->tempname), fIP(raw));
+			return IP2String(req->tempname, fIP(raw));
 		else if (type == DNS_TYPE_AAAA)
-			return IP62String(req->tempname, sizeof(req->tempname), (MYBYTE*)raw);
+			return IP62String(req->tempname, (MYBYTE*)raw);
 		else if (type == DNS_TYPE_PTR)
 		{
 			fQu(req->tempname, req->dnsp, raw);
@@ -4121,7 +3885,6 @@ char* getResult(dnsRequest *req)
 		return NULL;
 }
 
-
 bool checkRange(data17 *rangeData, char rangeInd)
 {
 	//debug("checkRange");
@@ -4129,7 +3892,7 @@ bool checkRange(data17 *rangeData, char rangeInd)
 	if (!cfig.hasFilter)
 		return true;
 
-	MYBYTE rangeSetInd = cfig.dhcpRanges[(unsigned int)rangeInd].rangeSetInd;
+	MYBYTE rangeSetInd = cfig.dhcpRanges[rangeInd].rangeSetInd;
 	data14 *rangeSet = &cfig.rangeSet[rangeSetInd];
 	//printf("checkRange entering, rangeInd=%i rangeSetInd=%i\n", rangeInd, rangeSetInd);
 	//printf("checkRange entered, macFound=%i vendFound=%i userFound=%i\n", macFound, vendFound, userFound);
@@ -4144,13 +3907,68 @@ bool checkRange(data17 *rangeData, char rangeInd)
 	return false;
 }
 
+bool checkIP(data9 *req, data17 *rangeData, MYDWORD ip)
+{
+	MYDWORD rangeStart;
+	MYDWORD rangeEnd;
+
+	char rangeInd = getRangeInd(ip);
+
+	if (rangeInd < 0)
+		return false;
+
+	if (!checkRange(rangeData, rangeInd))
+		return false;
+
+	MYWORD ind = getIndex(rangeInd, ip);
+	data13 *range = &cfig.dhcpRanges[rangeInd];
+	data7 *dhcpEntry = range->dhcpEntry[ind];
+
+	if ((req->dhcpEntry != dhcpEntry && range->expiry[ind] > t) or range->expiry[ind] == INT_MAX)
+		return false;
+
+	if(req->subnetIP)
+	{
+		if(cfig.rangeSet[range->rangeSetInd].subnetIP[0])
+		{
+			rangeStart = range->rangeStart;
+			rangeEnd = range->rangeEnd;
+		}
+		else
+		{
+			calcRangeLimits(req->subnetIP, range->mask, &rangeStart, &rangeEnd);
+
+			if (rangeStart < range->rangeStart)
+				rangeStart = range->rangeStart;
+
+			if (rangeEnd > range->rangeEnd)
+				rangeEnd = range->rangeEnd;
+		}
+
+		if (htonl(ip) >= rangeStart && htonl(ip) <= rangeEnd)
+			return true;
+	}
+	else
+	{
+		calcRangeLimits(network.dhcpConn[req->sockInd].server, range->mask, &rangeStart, &rangeEnd);
+
+		if (rangeStart < range->rangeStart)
+			rangeStart = range->rangeStart;
+
+		if (rangeEnd > range->rangeEnd)
+			rangeEnd = range->rangeEnd;
+
+		if (htonl(ip) >= rangeStart && htonl(ip) <= rangeEnd)
+			return true;
+	}
+	return false;
+}
+
 MYDWORD resad(data9 *req)
 {
 	//debug("resad");
 	char logBuff[512];
 	char tempbuff[512];
-	MYDWORD minRange = 0;
-	MYDWORD maxRange = 0;
 
 	if (req->dhcpp.header.bp_giaddr)
 	{
@@ -4159,10 +3977,6 @@ MYDWORD resad(data9 *req)
 	}
 
 	req->dhcpEntry = findDHCPEntry(req->chaddr);
-
-
-	sprintf_s(logBuff, sizeof(logBuff), "resad(%s)", IP2String(tempbuff, sizeof(tempbuff), req->reqIP));
-	logDHCPMess(logBuff, 1);
 
 	if (req->dhcpEntry && req->dhcpEntry->fixed)
 	{
@@ -4175,18 +3989,17 @@ MYDWORD resad(data9 *req)
 		{
 			if (verbatim || cfig.dhcpLogLevel)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Static DHCP Host %s (%s) has No IP, DHCPDISCOVER ignored", req->chaddr, req->hostname);
+				sprintf(logBuff, "Static DHCP Host %s (%s) has No IP, DHCPDISCOVER ignored", req->chaddr, req->hostname);
 				logDHCPMess(logBuff, 1);
 			}
 			return 0;
 		}
 	}
 
-	MYDWORD iipNew = 0;
-	MYDWORD iipExp = 0;
 	MYDWORD rangeStart = 0;
 	MYDWORD rangeEnd = 0;
-	char rangeInd = -1;
+	MYDWORD iipNew = 0;
+	MYDWORD iipExp = 0;
 	bool rangeFound = false;
 	data17 rangeData;
 	memset(&rangeData, 0, sizeof(data17));
@@ -4251,42 +4064,16 @@ MYDWORD resad(data9 *req)
 //	printArray("vendArray", (char*)cfig.vendArray);
 //	printArray("userArray", (char*)cfig.userArray);
 
-	if (req->dhcpEntry)
-	{
-		req->dhcpEntry->rangeInd = getRangeInd(req->dhcpEntry->ip);
+	if (!iipNew && req->reqIP && checkIP(req, &rangeData, req->reqIP))
+		iipNew = ntohl(req->reqIP);
 
-		if (req->dhcpEntry->rangeInd >= 0)
-		{
-			int ind = getIndex(req->dhcpEntry->rangeInd, req->dhcpEntry->ip);
+	if (!iipNew && req->dhcpEntry && req->dhcpEntry->ip && checkIP(req, &rangeData, req->dhcpEntry->ip))
+		iipNew = ntohl(req->dhcpEntry->ip);
 
-			if (cfig.dhcpRanges[(unsigned int)(req->dhcpEntry->rangeInd)].dhcpEntry && cfig.dhcpRanges[(unsigned int)(req->dhcpEntry->rangeInd)].dhcpEntry[ind] == req->dhcpEntry && checkRange(&rangeData, req->dhcpEntry->rangeInd))
-			{
-				MYBYTE rangeSetInd = cfig.dhcpRanges[(unsigned int)(req->dhcpEntry->rangeInd)].rangeSetInd;
-
-				if (!cfig.rangeSet[rangeSetInd].subnetIP[0])
-				{
-					MYDWORD mask = cfig.dhcpRanges[(unsigned int)(req->dhcpEntry->rangeInd)].mask;
-					calcRangeLimits(req->subnetIP, mask, &minRange, &maxRange);
-
-					if (htonl(req->dhcpEntry->ip) >= minRange && htonl(req->dhcpEntry->ip) <= maxRange)
-					{
-						setTempLease(req->dhcpEntry);
-						return req->dhcpEntry->ip;
-					}
-				}
-				else
-				{
-					setTempLease(req->dhcpEntry);
-					return req->dhcpEntry->ip;
-				}
-			}
-		}
-	}
-
-	if (dnsService && req->hostname[0])
+	if (!iipNew && dnsService && req->hostname[0])
 	{
 		char hostname[128];
-		strcpy_s(hostname,sizeof(hostname), req->hostname);
+		strcpy(hostname, req->hostname);
 		myLower(hostname);
 		hostMap::iterator it = dnsCache[currentInd].find(hostname);
 
@@ -4296,108 +4083,43 @@ MYDWORD resad(data9 *req)
 
 			//printf("%u\n", cache->mapname);
 
-			if (cache)
-			{
-				if (strcasecmp(cache->mapname, hostname))
-					break;
+			if (!cache || strcasecmp(cache->mapname, hostname))
+				break;
 
-				if (cache->ip)
-				{
-					char k = getRangeInd(cache->ip);
-
-					if (k >= 0)
-					{
-						if (checkRange(&rangeData, k))
-						{
-							data13 *range = &cfig.dhcpRanges[(unsigned int)k];
-							int ind = getIndex(k, cache->ip);
-
-							if (ind >= 0 && range->expiry && range->expiry[ind] <= t)
-							{
-								MYDWORD iip = htonl(cache->ip);
-
-								if (!cfig.rangeSet[range->rangeSetInd].subnetIP[0])
-								{
-									calcRangeLimits(req->subnetIP, range->mask, &minRange, &maxRange);
-
-									if (iip >= minRange && iip <= maxRange)
-									{
-										iipNew = iip;
-										rangeInd = k;
-										break;
-									}
-								}
-								else
-								{
-									iipNew = iip;
-									rangeInd = k;
-									break;
-								}
-							}
-						}
-					}
-				}
-			}
+			if (cache->ip && checkIP(req, &rangeData, cache->ip))
+				iipNew = ntohl(cache->ip);
 		}
 	}
-
-	if (!iipNew && req->reqIP)
-	{
-		char k = getRangeInd(req->reqIP);
-
-		if (k >= 0)
-		{
-			if (checkRange(&rangeData, k))
-			{
-				data13 *range = &cfig.dhcpRanges[(unsigned int)k];
-				int ind = getIndex(k, req->reqIP);
-
-				if (range->expiry && range->expiry[ind] <= t)
-				{
-					if (!cfig.rangeSet[range->rangeSetInd].subnetIP[0])
-					{
-						calcRangeLimits(req->subnetIP, range->mask, &minRange, &maxRange);
-						MYDWORD iip = htonl(req->reqIP);
-
-						if (iip >= minRange && iip <= maxRange)
-						{
-							iipNew = iip;
-							rangeInd = k;
-						}
-					}
-					else
-					{
-						MYDWORD iip = htonl(req->reqIP);
-						iipNew = iip;
-						rangeInd = k;
-					}
-				}
-			}
-		}
-	}
-
 
 	for (char k = 0; !iipNew && k < cfig.rangeCount; k++)
 	{
+		data13 *range = &cfig.dhcpRanges[k];
+
 		if (checkRange(&rangeData, k))
 		{
-			data13 *range = &cfig.dhcpRanges[(unsigned int)k];
-			rangeStart = range->rangeStart;
-			rangeEnd = range->rangeEnd;
-
 			if (!cfig.rangeSet[range->rangeSetInd].subnetIP[0])
 			{
-				calcRangeLimits(req->subnetIP, range->mask, &minRange, &maxRange);
+				if (req->subnetIP)
+					calcRangeLimits(req->subnetIP, range->mask, &rangeStart, &rangeEnd);
+				else
+					calcRangeLimits(network.dhcpConn[req->sockInd].server, network.dhcpConn[req->sockInd].mask, &rangeStart, &rangeEnd);
 
-				if (rangeStart < minRange)
-					rangeStart = minRange;
+				if (rangeStart < range->rangeStart)
+					rangeStart = range->rangeStart;
 
-				if (rangeEnd > maxRange)
-					rangeEnd = maxRange;
+				if (rangeEnd > range->rangeEnd)
+					rangeEnd = range->rangeEnd;
+			}
+			else
+			{
+				rangeStart = range->rangeStart;
+				rangeEnd = range->rangeEnd;
 			}
 
 			if (rangeStart <= rangeEnd)
 			{
+				//sprintf(logBuff, "Start=%u End=%u", rangeStart, rangeEnd);
+				//logMess(logBuff, 1);
 				rangeFound = true;
 
 				if (cfig.replication == 2)
@@ -4406,16 +4128,14 @@ MYDWORD resad(data9 *req)
 					{
 						int ind = m - range->rangeStart;
 
-						if (!range->expiry || !range->expiry[ind])
+						if (!range->expiry[ind])
 						{
 							iipNew = m;
-							rangeInd = k;
 							break;
 						}
-						else if (!iipExp && range->expiry && range->expiry[ind] < t)
+						else if (!iipExp && range->expiry[ind] < t)
 						{
 							iipExp = m;
-							rangeInd = k;
 						}
 					}
 				}
@@ -4425,16 +4145,17 @@ MYDWORD resad(data9 *req)
 					{
 						int ind = m - range->rangeStart;
 
-						if (!range->expiry || !range->expiry[ind])
+						//sprintf(logBuff, "Ind=%u Exp=%u", m, range->expiry[ind]);
+						//logMess(logBuff, 1);
+
+						if (!range->expiry[ind])
 						{
 							iipNew = m;
-							rangeInd = k;
 							break;
 						}
-						else if (!iipExp && range->expiry && range->expiry[ind] < t)
+						else if (!iipExp && range->expiry[ind] < t)
 						{
 							iipExp = m;
-							rangeInd = k;
 						}
 					}
 				}
@@ -4442,6 +4163,8 @@ MYDWORD resad(data9 *req)
 		}
 	}
 
+	//sprintf(logBuff, "New=%u Old=%u", iipNew, iipExp);
+	//logMess(logBuff, 1);
 
 	if (!iipNew && iipExp)
 			iipNew = iipExp;
@@ -4459,31 +4182,12 @@ MYDWORD resad(data9 *req)
 			if (!req->dhcpEntry)
 				return 0;
 
-/*
-			req->dhcpEntry = (data7*)calloc(1, sizeof(data7));
-
-			if (!req->dhcpEntry)
-			{
-				sprintf_s(logBuff, sizeof(logBuff), "Memory Allocation Error");
-				logDHCPMess(logBuff, 1);
-				return 0;
-			}
-
-			req->dhcpEntry->mapname = cloneString(req->chaddr);
-
-			if (!req->dhcpEntry->mapname)
-			{
-				sprintf_s(logBuff, sizeof(logBuff), "Memory Allocation Error");
-				logDHCPMess(logBuff, 1);
-				return 0;
-			}
-*/
-
 			dhcpCache[req->dhcpEntry->mapname] = req->dhcpEntry;
 		}
 
 		req->dhcpEntry->ip = htonl(iipNew);
-		req->dhcpEntry->rangeInd = rangeInd;
+		req->dhcpEntry->rangeInd = getRangeInd(req->dhcpEntry->ip);
+		req->dhcpEntry->subnetFlg = !!req->subnetIP;
 		setTempLease(req->dhcpEntry);
 		return req->dhcpEntry->ip;
 	}
@@ -4493,49 +4197,176 @@ MYDWORD resad(data9 *req)
 		if (rangeFound)
 		{
 			if (req->dhcpp.header.bp_giaddr)
-				sprintf_s(logBuff, sizeof(logBuff), "No free leases for DHCPDISCOVER for %s (%s) from RelayAgent %s", req->chaddr, req->hostname, IP2String(tempbuff, sizeof(tempbuff), req->dhcpp.header.bp_giaddr));
+				sprintf(logBuff, "No free leases for DHCPDISCOVER for %s (%s) from RelayAgent %s", req->chaddr, req->hostname, IP2String(tempbuff, req->dhcpp.header.bp_giaddr));
 			else
-				sprintf_s(logBuff, sizeof(logBuff), "No free leases for DHCPDISCOVER for %s (%s) from interface %s", req->chaddr, req->hostname, IP2String(tempbuff, sizeof(tempbuff), network.dhcpConn[req->sockInd].server));
+				sprintf(logBuff, "No free leases for DHCPDISCOVER for %s (%s) from interface %s", req->chaddr, req->hostname, IP2String(tempbuff, network.dhcpConn[req->sockInd].server));
 		}
 		else
 		{
 			if (req->dhcpp.header.bp_giaddr)
-				sprintf_s(logBuff, sizeof(logBuff), "No Matching DHCP Range for DHCPDISCOVER for %s (%s) from RelayAgent %s", req->chaddr, req->hostname, IP2String(tempbuff, sizeof(tempbuff), req->dhcpp.header.bp_giaddr));
+				sprintf(logBuff, "No Matching DHCP Range for DHCPDISCOVER for %s (%s) from RelayAgent %s", req->chaddr, req->hostname, IP2String(tempbuff, req->dhcpp.header.bp_giaddr));
 			else
-				sprintf_s(logBuff, sizeof(logBuff), "No Matching DHCP Range for DHCPDISCOVER for %s (%s) from interface %s", req->chaddr, req->hostname, IP2String(tempbuff, sizeof(tempbuff), network.dhcpConn[req->sockInd].server));
+				sprintf(logBuff, "No Matching DHCP Range for DHCPDISCOVER for %s (%s) from interface %s", req->chaddr, req->hostname, IP2String(tempbuff, network.dhcpConn[req->sockInd].server));
 		}
 		logDHCPMess(logBuff, 1);
 	}
 	return 0;
 }
 
-MYDWORD chad(data9 *req)
+MYDWORD chkaddr(data9 *req)
 {
-	req->dhcpEntry = findDHCPEntry(req->chaddr);
-	//printf("dhcpEntry=%d\n", req->dhcpEntry);
+	//debug("chaddr");
+	//debug(req->remote.sin_addr.s_addr);
+	//debug(req->dhcpp.header.bp_ciaddr);
 
-	if (req->dhcpEntry && req->dhcpEntry->ip)
-		return req->dhcpEntry->ip;
-	else
+	req->dhcpEntry = findDHCPEntry(req->chaddr);
+
+	if (!req->dhcpEntry || !req->dhcpEntry->ip)
 		return 0;
+
+	//debug(req->dhcpEntry->subnetFlg);
+
+	req->dhcpEntry->rangeInd = getRangeInd(req->dhcpEntry->ip);
+
+	if (req->dhcpEntry->fixed)
+		return req->dhcpEntry->ip;
+
+	MYDWORD rangeStart = 0;
+	MYDWORD rangeEnd = 0;
+
+	if (req->dhcpEntry->rangeInd >= 0)
+	{
+		data17 rangeData;
+		memset(&rangeData, 0, sizeof(data17));
+		data13 *range = &cfig.dhcpRanges[req->dhcpEntry->rangeInd];
+		int ind = getIndex(req->dhcpEntry->rangeInd, req->dhcpEntry->ip);
+		bool rangeOK = true;
+
+		if (cfig.hasFilter)
+		{
+			for (MYBYTE rangeSetInd = 0; rangeSetInd < MAX_RANGE_SETS && cfig.rangeSet[rangeSetInd].active; rangeSetInd++)
+			{
+				data14 *rangeSet = &cfig.rangeSet[rangeSetInd];
+
+				for (MYBYTE i = 0; i < MAX_RANGE_FILTERS && rangeSet->macSize[i]; i++)
+				{
+					//printf("%s\n", hex2String(tempbuff, rangeSet->macStart[i], rangeSet->macSize[i]));
+					//printf("%s\n", hex2String(tempbuff, rangeSet->macEnd[i], rangeSet->macSize[i]));
+
+					if(memcmp(req->dhcpp.header.bp_chaddr, rangeSet->macStart[i], rangeSet->macSize[i]) >= 0 && memcmp(req->dhcpp.header.bp_chaddr, rangeSet->macEnd[i], rangeSet->macSize[i]) <= 0)
+					{
+						rangeData.macArray[rangeSetInd] = 1;
+						rangeData.macFound = true;
+						//printf("mac Found, rangeSetInd=%i\n", rangeSetInd);
+						break;
+					}
+				}
+
+				for (MYBYTE i = 0; i < MAX_RANGE_FILTERS && req->vendClass.size && rangeSet->vendClassSize[i]; i++)
+				{
+					if(rangeSet->vendClassSize[i] == req->vendClass.size && !memcmp(req->vendClass.value, rangeSet->vendClass[i], rangeSet->vendClassSize[i]))
+					{
+						rangeData.vendArray[rangeSetInd] = 1;
+						rangeData.vendFound = true;
+						//printf("vend Found, rangeSetInd=%i\n", rangeSetInd);
+						break;
+					}
+				}
+
+				for (MYBYTE i = 0; i < MAX_RANGE_FILTERS && req->userClass.size && rangeSet->userClassSize[i]; i++)
+				{
+					if(rangeSet->userClassSize[i] == req->userClass.size && !memcmp(req->userClass.value, rangeSet->userClass[i], rangeSet->userClassSize[i]))
+					{
+						rangeData.userArray[rangeSetInd] = 1;
+						rangeData.userFound = true;
+						//printf("user Found, rangeSetInd=%i\n", rangeSetInd);
+						break;
+					}
+				}
+
+				for (MYBYTE i = 0; i < MAX_RANGE_FILTERS && req->subnetIP && rangeSet->subnetIP[i]; i++)
+				{
+					if(req->subnetIP == rangeSet->subnetIP[i])
+					{
+						rangeData.subnetArray[rangeSetInd] = 1;
+						rangeData.subnetFound = true;
+						//printf("subnet Found, rangeSetInd=%i\n", rangeSetInd);
+						break;
+					}
+				}
+			}
+
+			MYBYTE rangeSetInd = range->rangeSetInd;
+			data14 *rangeSet = &cfig.rangeSet[rangeSetInd];
+			rangeOK = false;
+
+			if((!rangeData.macFound && !rangeSet->macSize[0]) || (rangeData.macFound && rangeData.macArray[rangeSetInd]))
+				if((!rangeData.vendFound && !rangeSet->vendClassSize[0]) || (rangeData.vendFound && rangeData.vendArray[rangeSetInd]))
+					if((!rangeData.userFound && !rangeSet->userClassSize[0]) || (rangeData.userFound && rangeData.userArray[rangeSetInd]))
+						rangeOK = true;
+		}
+
+		if (range->dhcpEntry[ind] == req->dhcpEntry && rangeOK)
+		{
+			if(rangeData.subnetFound)
+			{
+				if (rangeData.subnetArray[range->rangeSetInd])
+					return req->dhcpEntry->ip;
+				else
+					return 0;
+			}
+			else if(req->subnetIP)
+			{
+				calcRangeLimits(req->subnetIP, range->mask, &rangeStart, &rangeEnd);
+
+				if (rangeStart < range->rangeStart)
+					rangeStart = range->rangeStart;
+
+				if (rangeEnd > range->rangeEnd)
+					rangeEnd = range->rangeEnd;
+
+				if (htonl(req->dhcpEntry->ip) >= rangeStart && htonl(req->dhcpEntry->ip) <= rangeEnd)
+					return req->dhcpEntry->ip;
+			}
+			else if(!req->dhcpEntry->subnetFlg && !cfig.rangeSet[range->rangeSetInd].subnetIP[0])
+			{
+				calcRangeLimits(network.dhcpConn[req->sockInd].server, range->mask, &rangeStart, &rangeEnd);
+
+				if (rangeStart < range->rangeStart)
+					rangeStart = range->rangeStart;
+
+				if (rangeEnd > range->rangeEnd)
+					rangeEnd = range->rangeEnd;
+
+				if (htonl(req->dhcpEntry->ip) >= rangeStart && htonl(req->dhcpEntry->ip) <= rangeEnd)
+					return req->dhcpEntry->ip;
+			}
+			else if(req->dhcpEntry->subnetFlg)
+				return req->dhcpEntry->ip;
+		}
+	}
+
+	return 0;
 }
 
-MYDWORD sDHCPMessage(data9 *req)
+MYDWORD sdmess(data9 *req)
 {
-	//sprintf_s(logBuff, sizeof(logBuff), "sDHCPMessage, Request Type = %u",req->req_type);
+	//sprintf(logBuff, "sdmess, Request Type = %u",req->req_type);
 	//debug(logBuff);
-	char logBuff[512];
 	char tempbuff[512];
+	char logBuff[256];
 
 	if (req->req_type == DHCP_MESS_NONE)
 	{
-		req->dhcpp.header.bp_yiaddr = chad(req);
+		req->dhcpp.header.bp_yiaddr = chkaddr(req);
 
-		if (!req->dhcpp.header.bp_yiaddr)
+		if (req->dhcpp.header.bp_yiaddr && req->dhcpEntry && req->dhcpEntry->fixed)
+			req->lease = UINT_MAX;
+		else
 		{
 			if (verbatim || cfig.dhcpLogLevel)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "No Static Entry found for BOOTPREQUEST from Host %s", req->chaddr);
+				sprintf(logBuff, "No Static Entry found for BOOTPREQUEST from Host %s", req->chaddr);
 				logDHCPMess(logBuff, 1);
 			}
 
@@ -4544,10 +4375,10 @@ MYDWORD sDHCPMessage(data9 *req)
 	}
 	else if (req->req_type == DHCP_MESS_DECLINE)
 	{
-		if (req->dhcpp.header.bp_ciaddr && chad(req) == req->dhcpp.header.bp_ciaddr)
+		/* Thanks to Timo for fixing issue here */
+		if (req->reqIP && chkaddr(req) == req->reqIP)
 		{
-			lockIP(req->dhcpp.header.bp_ciaddr);
-
+			lockIP(req->reqIP);
 			req->dhcpEntry->ip = 0;
 			req->dhcpEntry->expiry = INT_MAX;
 			req->dhcpEntry->display = false;
@@ -4555,7 +4386,7 @@ MYDWORD sDHCPMessage(data9 *req)
 
 			if (verbatim || cfig.dhcpLogLevel)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "IP Address %s declined by Host %s (%s), locked", IP2String(tempbuff, sizeof(tempbuff), req->dhcpp.header.bp_ciaddr), req->chaddr, req->hostname);
+				sprintf(logBuff, "IP Address %s declined by Host %s (%s), locked", IP2String(tempbuff, req->reqIP), req->chaddr, req->dhcpEntry->hostname);
 				logDHCPMess(logBuff, 1);
 			}
 		}
@@ -4564,20 +4395,17 @@ MYDWORD sDHCPMessage(data9 *req)
 	}
 	else if (req->req_type == DHCP_MESS_RELEASE)
 	{
-		if (req->dhcpp.header.bp_ciaddr && chad(req) == req->dhcpp.header.bp_ciaddr)
+		if (req->dhcpp.header.bp_ciaddr && chkaddr(req) == req->dhcpp.header.bp_ciaddr)
 		{
 			req->dhcpEntry->display = false;
 			req->dhcpEntry->local = false;
-			req->lease = 0;
 			setLeaseExpiry(req->dhcpEntry, 0);
-			_beginthread(updateStateFile, 0, (void*)req->dhcpEntry);
 
-			if (dnsService && cfig.replication != 2)
-				expireEntry(req->dhcpEntry->ip);
+			_beginthread(updateStateFile, 0, (void*)req->dhcpEntry);
 
 			if (verbatim || cfig.dhcpLogLevel)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "IP Address %s released by Host %s (%s)", IP2String(tempbuff, sizeof(tempbuff), req->dhcpp.header.bp_ciaddr), req->chaddr, req->hostname);
+				sprintf(logBuff, "IP Address %s released by Host %s (%s)", IP2String(tempbuff, req->dhcpp.header.bp_ciaddr), req->chaddr, req->hostname);
 				logDHCPMess(logBuff, 1);
 			}
 		}
@@ -4586,109 +4414,80 @@ MYDWORD sDHCPMessage(data9 *req)
 	}
 	else if (req->req_type == DHCP_MESS_INFORM)
 	{
-		//printf("repl0=%s\n", IP2String(tempbuff, sizeof(tempbuff), cfig.zoneServers[0]));
-		//printf("repl1=%s\n", IP2String(tempbuff, sizeof(tempbuff), cfig.zoneServers[1]));
-		//printf("IP=%s bytes=%u replication=%i\n", IP2String(tempbuff, sizeof(tempbuff), req->remote.sin_addr.s_addr), req->bytes, cfig.replication);
+		//printf("repl0=%s\n", IP2String(tempbuff, cfig.zoneServers[0]));
+		//printf("repl1=%s\n", IP2String(tempbuff, cfig.zoneServers[1]));
+		//printf("IP=%s bytes=%u replication=%i\n", IP2String(tempbuff, req->remote.sin_addr.s_addr), req->bytes, cfig.replication);
 
 		if ((cfig.replication == 1 && req->remote.sin_addr.s_addr == cfig.zoneServers[1]) || (cfig.replication == 2 && req->remote.sin_addr.s_addr == cfig.zoneServers[0]))
 			recvRepl(req);
 
 		return 0;
 	}
+	//else if (req->req_type == DHCP_MESS_DISCOVER && strcasecmp(req->hostname, cfig.servername))
 	else if (req->req_type == DHCP_MESS_DISCOVER)
 	{
-		if (0 == strcasecmp(req->hostname, cfig.servername))
-		{
-			// hostname is the same, check if mac is local
-			int i = 0;
-			byte blankAddress[8];
-			memset(blankAddress, 0, 8);
-			while (memcmp(hostPhysAddress[i], blankAddress, 8) && i < MAX_SERVERS)
-			{
-				if (memcmp(hostPhysAddress[i], req->dhcpp.header.bp_chaddr, 8) == 0)
-				{
-					// This is a local request, so ignore
-					return 0;
-				}
-				i++;
-			}
-		}
-
 		req->dhcpp.header.bp_yiaddr = resad(req);
 
 		if (!req->dhcpp.header.bp_yiaddr)
 			return 0;
 
 		req->resp_type = DHCP_MESS_OFFER;
+
 	}
 	else if (req->req_type == DHCP_MESS_REQUEST)
 	{
-		//printf("%s\n", IP2String(tempbuff, sizeof(tempbuff), req->dhcpp.header.bp_ciaddr));
+		//printf("%s\n", IP2String(tempbuff, req->dhcpp.header.bp_ciaddr));
 
 		if (req->server)
 		{
 			if (req->server == network.dhcpConn[req->sockInd].server)
 			{
-				if (req->reqIP && req->reqIP == chad(req) && req->dhcpEntry->expiry > t)
+				if (req->reqIP && req->reqIP == chkaddr(req) && req->dhcpEntry->expiry > t)
 				{
 					req->resp_type = DHCP_MESS_ACK;
 					req->dhcpp.header.bp_yiaddr = req->reqIP;
 				}
-				else if (req->dhcpp.header.bp_ciaddr && req->dhcpp.header.bp_ciaddr == chad(req) && req->dhcpEntry->expiry > t)
+				else if (req->dhcpp.header.bp_ciaddr && req->dhcpp.header.bp_ciaddr == chkaddr(req) && req->dhcpEntry->expiry > t)
 				{
 					req->resp_type = DHCP_MESS_ACK;
 					req->dhcpp.header.bp_yiaddr = req->dhcpp.header.bp_ciaddr;
+					req->dhcpp.header.bp_ciaddr = 0;
 				}
 				else
 				{
-					req->dhcpp.header.bp_yiaddr = resad(req);
-					if (!req->dhcpp.header.bp_yiaddr || req->dhcpp.header.bp_yiaddr != req->reqIP)
-					{
-						req->resp_type = DHCP_MESS_NAK;
-						req->dhcpp.header.bp_yiaddr = 0;
+					req->resp_type = DHCP_MESS_NAK;
+					req->dhcpp.header.bp_yiaddr = 0;
 
-						if (verbatim || cfig.dhcpLogLevel)
-						{
-							sprintf_s(logBuff, sizeof(logBuff), "DHCPREQUEST from Host %s (%s) without Discover or with wrong address, NAKed", req->chaddr, req->hostname);
-							logDHCPMess(logBuff, 1);
-						}
-					}
-					else
+					if (verbatim || cfig.dhcpLogLevel)
 					{
-						req->resp_type = DHCP_MESS_ACK;
+						sprintf(logBuff, "DHCPREQUEST from Host %s (%s) without Discover, NAKed", req->chaddr, req->hostname);
+						logDHCPMess(logBuff, 1);
 					}
 				}
 			}
 			else
 				return 0;
 		}
-		else if (req->dhcpp.header.bp_ciaddr && req->dhcpp.header.bp_ciaddr == chad(req) && req->dhcpEntry->expiry > t)
+		else if (req->dhcpp.header.bp_ciaddr && req->dhcpp.header.bp_ciaddr == chkaddr(req) && req->dhcpEntry->expiry > t)
 		{
 			req->resp_type = DHCP_MESS_ACK;
 			req->dhcpp.header.bp_yiaddr = req->dhcpp.header.bp_ciaddr;
+			req->dhcpp.header.bp_ciaddr = 0;
 		}
-		else if (req->reqIP && req->reqIP == chad(req) && req->dhcpEntry->expiry > t)
+		else if (req->reqIP && req->reqIP == chkaddr(req) && req->dhcpEntry->expiry > t)
 		{
 			req->resp_type = DHCP_MESS_ACK;
 			req->dhcpp.header.bp_yiaddr = req->reqIP;
 		}
 		else
 		{
-			req->dhcpp.header.bp_yiaddr = resad(req);
-			if (!req->dhcpp.header.bp_yiaddr || req->dhcpp.header.bp_yiaddr!=req->reqIP)
-			{
-				req->resp_type = DHCP_MESS_NAK;
-				req->dhcpp.header.bp_yiaddr = 0;
+			req->resp_type = DHCP_MESS_NAK;
+			req->dhcpp.header.bp_yiaddr = 0;
 
-				if (verbatim || cfig.dhcpLogLevel)
-				{
-					sprintf_s(logBuff, sizeof(logBuff), "DHCPREQUEST from Host %s (%s) without Discover or with wrong address, NAKed", req->chaddr, req->hostname);
-					logDHCPMess(logBuff, 1);
-				}
-			}
-			else
+			if (verbatim || cfig.dhcpLogLevel)
 			{
-				req->resp_type = DHCP_MESS_ACK;
+				sprintf(logBuff, "DHCPREQUEST from Host %s (%s) without Discover, NAKed", req->chaddr, req->hostname);
+				logDHCPMess(logBuff, 1);
 			}
 		}
 	}
@@ -4696,43 +4495,45 @@ MYDWORD sDHCPMessage(data9 *req)
 		return 0;
 
 	addOptions(req);
-	int packSize = (int)(req->vp - (MYBYTE*)&req->dhcpp);
+	int packSize = req->vp - (MYBYTE*)&req->dhcpp;
 	packSize++;
 
 	if (req->req_type == DHCP_MESS_NONE)
 		packSize = req->messsize;
 
-	if ((req->dhcpp.header.bp_giaddr || !req->remote.sin_addr.s_addr) && req->dhcpEntry && req->dhcpEntry->rangeInd >= 0)
+	//debug(req->dhcpEntry->rangeInd);
+	//debug(cfig.dhcpRanges[req->dhcpEntry->rangeInd].rangeSetInd);
+
+	if (req->subnetIP && req->dhcpEntry && req->dhcpEntry->rangeInd >= 0)
 	{
-		MYBYTE rangeSetInd = cfig.dhcpRanges[(unsigned int)(req->dhcpEntry->rangeInd)].rangeSetInd;
+		MYBYTE rangeSetInd = cfig.dhcpRanges[req->dhcpEntry->rangeInd].rangeSetInd;
 		req->targetIP = cfig.rangeSet[rangeSetInd].targetIP;
 	}
 
 	if (req->targetIP)
 	{
-		req->remote.sin_port = htons(dhcpServerPort);
+		req->remote.sin_port = htons(IPPORT_DHCPS);
 		req->remote.sin_addr.s_addr = req->targetIP;
 	}
 	else if (req->dhcpp.header.bp_giaddr)
 	{
-		req->remote.sin_port = htons(dhcpServerPort);
+		req->remote.sin_port = htons(IPPORT_DHCPS);
 		req->remote.sin_addr.s_addr = req->dhcpp.header.bp_giaddr;
 	}
-	//else if (req->dhcpp.header.bp_broadcast || !req->remote.sin_addr.s_addr || req->reqIP)
 	else if (req->dhcpp.header.bp_broadcast || !req->remote.sin_addr.s_addr)
 	{
-		req->remote.sin_port = htons(dhcpClientPort);
+		req->remote.sin_port = htons(IPPORT_DHCPC);
 		req->remote.sin_addr.s_addr = INADDR_BROADCAST;
 	}
 	else
 	{
-		req->remote.sin_port = htons(dhcpClientPort);
+		req->remote.sin_port = htons(IPPORT_DHCPC);
 	}
 
 	req->dhcpp.header.bp_op = BOOTP_REPLY;
 	errno = 0;
 
-	if (req->req_type == DHCP_MESS_DISCOVER && !req->dhcpp.header.bp_giaddr)
+	if (req->req_type == DHCP_MESS_DISCOVER && !req->remote.sin_addr.s_addr)
 	{
 		req->bytes = sendto(network.dhcpConn[req->sockInd].sock,
 							req->raw,
@@ -4754,7 +4555,7 @@ MYDWORD sDHCPMessage(data9 *req)
 	if (errno || req->bytes <= 0)
 		return 0;
 
-	//printf("goes=%s %i\n",IP2String(tempbuff, sizeof(tempbuff), req->dhcpp.header.bp_yiaddr),req->sockInd);
+	//printf("goes=%s %i\n",IP2String(tempbuff, req->dhcpp.header.bp_yiaddr),req->sockInd);
 	return req->dhcpp.header.bp_yiaddr;
 }
 
@@ -4762,8 +4563,8 @@ MYDWORD alad(data9 *req)
 {
 	//debug("alad");
 	//printf("in alad hostname=%s\n", req->hostname);
-	char logBuff[512];
 	char tempbuff[512];
+	char logBuff[256];
 
 	if (req->dhcpEntry && (req->req_type == DHCP_MESS_NONE || req->resp_type == DHCP_MESS_ACK))
 	{
@@ -4776,24 +4577,24 @@ MYDWORD alad(data9 *req)
 		req->dhcpEntry->local = true;
 		setLeaseExpiry(req->dhcpEntry, hangTime);
 
-		_beginthread(updateStateFile, 0, (void*)req->dhcpEntry);
-
 		if (dnsService && cfig.replication != 2)
 			updateDNS(req);
+
+		_beginthread(updateStateFile, 0, (void*)req->dhcpEntry);
 
 		if (verbatim || cfig.dhcpLogLevel >= 1)
 		{
 			if (req->lease && req->reqIP)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Host %s (%s) allotted %s for %u seconds", req->chaddr, req->hostname, IP2String(tempbuff, sizeof(tempbuff), req->dhcpp.header.bp_yiaddr), req->lease);
+				sprintf(logBuff, "Host %s (%s) allotted %s for %u seconds", req->chaddr, req->hostname, IP2String(tempbuff, req->dhcpp.header.bp_yiaddr), req->lease);
 			}
 			else if (req->req_type)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Host %s (%s) renewed %s for %u seconds", req->chaddr, req->hostname, IP2String(tempbuff, sizeof(tempbuff), req->dhcpp.header.bp_yiaddr), req->lease);
+				sprintf(logBuff, "Host %s (%s) renewed %s for %u seconds", req->chaddr, req->hostname, IP2String(tempbuff, req->dhcpp.header.bp_yiaddr), req->lease);
 			}
 			else
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "BOOTP Host %s (%s) allotted %s", req->chaddr, req->hostname, IP2String(tempbuff, sizeof(tempbuff), req->dhcpp.header.bp_yiaddr));
+				sprintf(logBuff, "BOOTP Host %s (%s) allotted %s", req->chaddr, req->hostname, IP2String(tempbuff, req->dhcpp.header.bp_yiaddr));
 			}
 			logDHCPMess(logBuff, 1);
 		}
@@ -4805,7 +4606,7 @@ MYDWORD alad(data9 *req)
 	}
 	else if ((verbatim || cfig.dhcpLogLevel >= 2) && req->resp_type == DHCP_MESS_OFFER)
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "Host %s (%s) offered %s", req->chaddr, req->hostname, IP2String(tempbuff, sizeof(tempbuff), req->dhcpp.header.bp_yiaddr));
+		sprintf(logBuff, "Host %s (%s) offered %s", req->chaddr, req->hostname, IP2String(tempbuff, req->dhcpp.header.bp_yiaddr));
 		logDHCPMess(logBuff, 2);
 	}
 	//printf("%u=out\n", req->resp_type);
@@ -4817,6 +4618,7 @@ void addOptions(data9 *req)
 	//debug("addOptions");
 
 	data3 op;
+	int i;
 
 	if (req->req_type && req->resp_type)
 	{
@@ -4828,7 +4630,7 @@ void addOptions(data9 *req)
 
 	if (req->dhcpEntry && req->resp_type != DHCP_MESS_DECLINE && req->resp_type != DHCP_MESS_NAK)
 	{
-		strcpy_s(req->dhcpp.header.bp_sname,sizeof(req->dhcpp.header.bp_sname), cfig.servername);
+		strcpy(req->dhcpp.header.bp_sname, cfig.servername);
 
 		if (req->dhcpEntry->fixed)
 		{
@@ -4861,7 +4663,7 @@ void addOptions(data9 *req)
 		{
 			if (req->dhcpEntry->rangeInd >= 0)
 			{
-				MYBYTE *opPointer = cfig.dhcpRanges[(unsigned int)(req->dhcpEntry->rangeInd)].options;
+				MYBYTE *opPointer = cfig.dhcpRanges[req->dhcpEntry->rangeInd].options;
 				//printf("Range=%i Pointer=%u\n", req->dhcpEntry->rangeInd,opPointer);
 
 				if (opPointer)
@@ -4911,11 +4713,11 @@ void addOptions(data9 *req)
 
 			op.opt_code = DHCP_OPTION_SERVERID;
 			op.size = 4;
-			putIP(op.value, network.dhcpConn[req->sockInd].server);
+			pIP(op.value, network.dhcpConn[req->sockInd].server);
 			pvdata(req, &op);
 
 			op.opt_code = DHCP_OPTION_DOMAINNAME;
-			op.size = (unsigned char)(strlen(cfig.zone) + 1);
+			op.size = strlen(cfig.zone) + 1;
 			memcpy(op.value, cfig.zone, op.size);
 			pvdata(req, &op);
 
@@ -4923,7 +4725,7 @@ void addOptions(data9 *req)
 			{
 				op.opt_code = DHCP_OPTION_IPADDRLEASE;
 				op.size = 4;
-				putUnsignedLong(op.value, cfig.lease);
+				pULong(op.value, cfig.lease);
 				pvdata(req, &op);
 			}
 
@@ -4933,26 +4735,23 @@ void addOptions(data9 *req)
 				op.size = 4;
 
 				if (req->dhcpEntry->rangeInd >= 0)
-					putIP(op.value, cfig.dhcpRanges[(unsigned int)(req->dhcpEntry->rangeInd)].mask);
+					pIP(op.value, cfig.dhcpRanges[req->dhcpEntry->rangeInd].mask);
 				else
-					putIP(op.value, cfig.mask);
+					pIP(op.value, cfig.mask);
 
 				pvdata(req, &op);
 			}
 
-			if (!req->hostname[0])
-				genHostName(req->hostname, sizeof(req->hostname), req->dhcpp.header.bp_chaddr, req->dhcpp.header.bp_hlen);
-
-			strcpy_s(req->dhcpEntry->hostname, MAX_HOSTNAME_STR_SIZE, req->hostname);
 /*
 			if (!req->opAdded[DHCP_OPTION_ROUTER])
 			{
 				op.opt_code = DHCP_OPTION_ROUTER;
 				op.size = 4;
-				putIP(op.value, network.dhcpConn[req->sockInd].server);
+				pIP(op.value, network.dhcpConn[req->sockInd].server);
 				pvdata(req, &op);
 			}
 */
+/*
 			if (!req->opAdded[DHCP_OPTION_DNS])
 			{
 				if (dnsService)
@@ -4964,29 +4763,29 @@ void addOptions(data9 *req)
 						if (cfig.replication == 1)
 						{
 							op.size = 8;
-							putIP(op.value, cfig.zoneServers[0]);
-							putIP(op.value + 4, cfig.zoneServers[1]);
+							pIP(op.value, cfig.zoneServers[0]);
+							pIP(op.value + 4, cfig.zoneServers[1]);
 							pvdata(req, &op);
 						}
 						else
 						{
 							op.size = 8;
-							putIP(op.value, cfig.zoneServers[1]);
-							putIP(op.value + 4, cfig.zoneServers[0]);
+							pIP(op.value, cfig.zoneServers[1]);
+							pIP(op.value + 4, cfig.zoneServers[0]);
 							pvdata(req, &op);
 						}
 					}
 					else if (cfig.dnsRepl > t)
 					{
 						op.size = 8;
-						putIP(op.value, cfig.zoneServers[1]);
-						putIP(op.value + 4, cfig.zoneServers[0]);
+						pIP(op.value, cfig.zoneServers[1]);
+						pIP(op.value + 4, cfig.zoneServers[0]);
 						pvdata(req, &op);
 					}
 					else
 					{
 						op.size = 4;
-						putIP(op.value, network.dhcpConn[req->sockInd].server);
+						pIP(op.value, network.dhcpConn[req->sockInd].server);
 						pvdata(req, &op);
 					}
 				}
@@ -4994,7 +4793,26 @@ void addOptions(data9 *req)
 				{
 					op.opt_code = DHCP_OPTION_DNS;
 					op.size = 4;
-					putIP(op.value, cfig.zoneServers[0]);
+					pIP(op.value, cfig.zoneServers[0]);
+					pvdata(req, &op);
+				}
+			}
+*/
+			if (!req->opAdded[DHCP_OPTION_DNS] && dnsService)
+			{
+				op.opt_code = DHCP_OPTION_DNS;
+
+				if (cfig.dnsRepl > t)
+				{
+					op.size = 8;
+					pIP(op.value, cfig.zoneServers[0]);
+					pIP(op.value + 4, cfig.zoneServers[1]);
+					pvdata(req, &op);
+				}
+				else
+				{
+					op.size = 4;
+					pIP(op.value, network.dhcpConn[req->sockInd].server);
 					pvdata(req, &op);
 				}
 			}
@@ -5008,6 +4826,16 @@ void addOptions(data9 *req)
 			if (req->agentOption.opt_code == DHCP_OPTION_RELAYAGENTINFO)
 				pvdata(req, &req->agentOption);
 		}
+
+		if (req->hostname[0])
+			strcpy(req->dhcpEntry->hostname, req->hostname);
+		else if (req->dhcpEntry->hostname[0])
+			strcpy(req->hostname, req->dhcpEntry->hostname);
+		else
+		{
+			genHostName(req->hostname, req->dhcpp.header.bp_chaddr, req->dhcpp.header.bp_hlen);
+			strcpy(req->dhcpEntry->hostname, req->hostname);
+		}
 	}
 
 	*(req->vp) = DHCP_OPTION_END;
@@ -5016,17 +4844,18 @@ void addOptions(data9 *req)
 void pvdata(data9 *req, data3 *op)
 {
 	//debug("pvdata");
+	MYBYTE opsize = op->size;
 
-	if (!req->opAdded[op->opt_code] && ((req->vp - (MYBYTE*)&req->dhcpp) + op->size < req->messsize))
+	if (!req->opAdded[op->opt_code] && ((req->vp - (MYBYTE*)&req->dhcpp) + opsize < req->messsize))
 	{
 		if (op->opt_code == DHCP_OPTION_NEXTSERVER)
 			req->dhcpp.header.bp_siaddr = fIP(op->value);
 		else if (op->opt_code == DHCP_OPTION_BP_FILE)
 		{
-			if (op->size <= 128)
-				memcpy(req->dhcpp.header.bp_file, op->value, op->size);
+			if (opsize <= 128)
+				memcpy(req->dhcpp.header.bp_file, op->value, opsize);
 		}
-		else if(op->size)
+		else if(opsize)
 		{
 			if (op->opt_code == DHCP_OPTION_IPADDRLEASE)
 			{
@@ -5036,30 +4865,26 @@ void pvdata(data9 *req, data3 *op)
 				if (req->lease >= INT_MAX)
 					req->lease = UINT_MAX;
 
-				putUnsignedLong(op->value, req->lease);
+				pULong(op->value, req->lease);
 			}
 			else if (op->opt_code == DHCP_OPTION_REBINDINGTIME)
 				req->rebind = fULong(op->value);
 			else if (op->opt_code == DHCP_OPTION_HOSTNAME)
 			{
-				if (op->size >= MAX_HOSTNAME_STR_SIZE)
-				{
-					printf("DHCP_OPTION_HOSTNAME is too long to copy into the req!\n");
-					op->size = MAX_HOSTNAME_STR_SIZE-1;
-				}
-				memcpy(req->hostname, op->value, op->size);
-				req->hostname[op->size] = 0;
-				req->hostname[MAX_HOSTNAME_STR_SIZE-1] = 0;
+				memcpy(req->hostname, op->value, opsize);
+				req->hostname[opsize] = 0;
+				req->hostname[64] = 0;
 
 				if (char *ptr = strchr(req->hostname, '.'))
 					*ptr = 0;
 
-				op->size = (unsigned char)strlen(req->hostname);
+				opsize = strlen(req->hostname) + 1;
+				memcpy(op->value, req->hostname, opsize);
 			}
 
-			MYWORD tsize = op->size + 2;
-			memcpy(req->vp, op, tsize);
-			(req->vp) += tsize;
+			opsize += 2;
+			memcpy(req->vp, op, opsize);
+			(req->vp) += opsize;
 		}
 		req->opAdded[op->opt_code] = true;
 	}
@@ -5067,13 +4892,13 @@ void pvdata(data9 *req, data3 *op)
 
 void updateDNS(data9 *req)
 {
-	MYDWORD expiry = INT_MAX;
-
-	if (req->lease < (MYDWORD)(INT_MAX - t))
-		expiry = (unsigned int)(t + req->lease);
-
 	if (req->dhcpEntry && cfig.replication != 2)
 	{
+		MYDWORD expiry = INT_MAX;
+
+		if (req->lease < (MYDWORD)(INT_MAX - t))
+			expiry = t + req->lease;
+
 		//printf("Update DNS t=%d exp=%d\n", t, req->dhcpEntry->expiry);
 		if (isLocal(req->dhcpEntry->ip))
 			add2Cache(req->hostname, req->dhcpEntry->ip, expiry, CTYPE_LOCAL_A, CTYPE_LOCAL_PTR_AUTH);
@@ -5094,10 +4919,10 @@ void setTempLease(data7 *dhcpEntry)
 
 		if (ind >= 0)
 		{
-			if (cfig.dhcpRanges[(unsigned int)(dhcpEntry->rangeInd)].expiry && cfig.dhcpRanges[(unsigned int)(dhcpEntry->rangeInd)].expiry[ind] != INT_MAX)
-				cfig.dhcpRanges[(unsigned int)(dhcpEntry->rangeInd)].expiry[ind] = dhcpEntry->expiry;
+			if (cfig.dhcpRanges[dhcpEntry->rangeInd].expiry[ind] != INT_MAX)
+				cfig.dhcpRanges[dhcpEntry->rangeInd].expiry[ind] = dhcpEntry->expiry;
 
-			if (cfig.dhcpRanges[(unsigned int)(dhcpEntry->rangeInd)].dhcpEntry) cfig.dhcpRanges[(unsigned int)(dhcpEntry->rangeInd)].dhcpEntry[ind] = dhcpEntry;
+			cfig.dhcpRanges[dhcpEntry->rangeInd].dhcpEntry[ind] = dhcpEntry;
 		}
 	}
 }
@@ -5116,10 +4941,10 @@ void setLeaseExpiry(data7 *dhcpEntry, MYDWORD lease)
 
 		if (ind >= 0)
 		{
-			if (cfig.dhcpRanges[(unsigned int)(dhcpEntry->rangeInd)].expiry && cfig.dhcpRanges[(unsigned int)(dhcpEntry->rangeInd)].expiry[ind] != INT_MAX)
-				cfig.dhcpRanges[(unsigned int)(dhcpEntry->rangeInd)].expiry[ind] = dhcpEntry->expiry;
+			if (cfig.dhcpRanges[dhcpEntry->rangeInd].expiry[ind] != INT_MAX)
+				cfig.dhcpRanges[dhcpEntry->rangeInd].expiry[ind] = dhcpEntry->expiry;
 
-			if (cfig.dhcpRanges[(unsigned int)(dhcpEntry->rangeInd)].dhcpEntry) cfig.dhcpRanges[(unsigned int)(dhcpEntry->rangeInd)].dhcpEntry[ind] = dhcpEntry;
+			cfig.dhcpRanges[dhcpEntry->rangeInd].dhcpEntry[ind] = dhcpEntry;
 		}
 	}
 }
@@ -5132,10 +4957,10 @@ void setLeaseExpiry(data7 *dhcpEntry)
 
 		if (ind >= 0)
 		{
-			if (cfig.dhcpRanges[(unsigned int)(dhcpEntry->rangeInd)].expiry && cfig.dhcpRanges[(unsigned int)(dhcpEntry->rangeInd)].expiry[ind] != INT_MAX)
-				cfig.dhcpRanges[(unsigned int)(dhcpEntry->rangeInd)].expiry[ind] = dhcpEntry->expiry;
+			if (cfig.dhcpRanges[dhcpEntry->rangeInd].expiry[ind] != INT_MAX)
+				cfig.dhcpRanges[dhcpEntry->rangeInd].expiry[ind] = dhcpEntry->expiry;
 
-			if (cfig.dhcpRanges[(unsigned int)(dhcpEntry->rangeInd)].dhcpEntry) cfig.dhcpRanges[(unsigned int)(dhcpEntry->rangeInd)].dhcpEntry[ind] = dhcpEntry;
+			cfig.dhcpRanges[dhcpEntry->rangeInd].dhcpEntry[ind] = dhcpEntry;
 		}
 	}
 }
@@ -5149,12 +4974,12 @@ void lockIP(MYDWORD ip)
 
 		for (char rangeInd = 0; rangeInd < cfig.rangeCount; rangeInd++)
 		{
-			if (iip >= cfig.dhcpRanges[(unsigned int)rangeInd].rangeStart && iip <= cfig.dhcpRanges[(unsigned int)rangeInd].rangeEnd)
+			if (iip >= cfig.dhcpRanges[rangeInd].rangeStart && iip <= cfig.dhcpRanges[rangeInd].rangeEnd)
 			{
-				int ind = iip - cfig.dhcpRanges[(unsigned int)rangeInd].rangeStart;
+				int ind = iip - cfig.dhcpRanges[rangeInd].rangeStart;
 
-				if (cfig.dhcpRanges[(unsigned int)rangeInd].expiry && cfig.dhcpRanges[(unsigned int)rangeInd].expiry[ind] != INT_MAX)
-					cfig.dhcpRanges[(unsigned int)rangeInd].expiry[ind] = INT_MAX;
+				if (cfig.dhcpRanges[rangeInd].expiry[ind] != INT_MAX)
+					cfig.dhcpRanges[rangeInd].expiry[ind] = INT_MAX;
 
 				break;
 			}
@@ -5170,12 +4995,12 @@ void holdIP(MYDWORD ip)
 
 		for (char rangeInd = 0; rangeInd < cfig.rangeCount; rangeInd++)
 		{
-			if (iip >= cfig.dhcpRanges[(unsigned int)rangeInd].rangeStart && iip <= cfig.dhcpRanges[(unsigned int)rangeInd].rangeEnd)
+			if (iip >= cfig.dhcpRanges[rangeInd].rangeStart && iip <= cfig.dhcpRanges[rangeInd].rangeEnd)
 			{
-				int ind = iip - cfig.dhcpRanges[(unsigned int)rangeInd].rangeStart;
+				int ind = iip - cfig.dhcpRanges[rangeInd].rangeStart;
 
-				if (cfig.dhcpRanges[(unsigned int)rangeInd].expiry && cfig.dhcpRanges[(unsigned int)rangeInd].expiry[ind] == 0)
-					cfig.dhcpRanges[(unsigned int)rangeInd].expiry[ind] = 1;
+				if (cfig.dhcpRanges[rangeInd].expiry[ind] == 0)
+					cfig.dhcpRanges[rangeInd].expiry[ind] = 1;
 
 				break;
 			}
@@ -5186,29 +5011,26 @@ void holdIP(MYDWORD ip)
 void __cdecl sendToken(void *lpParam)
 {
 	//debug("Send Token");
-//	char logBuff[512];
 	Sleep(1000 * 10);
 
 	while (kRunning)
 	{
 		errno = 0;
 
-		if (SOCKET_ERROR == sendto(cfig.dhcpReplConn.sock,
-			token.raw,
-			token.bytes,
-			0,
-			(sockaddr*)&token.remote,
-			sizeof(token.remote)))
-		{
-//			errno = WSAGetLastError();
-//
-//			if (!errno && verbatim || cfig.dhcpLogLevel >= 2)
-//			{
-//				sprintf_s(logBuff, sizeof(logBuff), "Token Sent");
-//				logDHCPMess(logBuff, 2);
-//			}
-		}
+		sendto(cfig.dhcpReplConn.sock,
+				token.raw,
+				token.bytes,
+				0,
+				(sockaddr*)&token.remote,
+				sizeof(token.remote));
 
+//		errno = WSAGetLastError();
+//
+//		if (!errno && verbatim || cfig.dhcpLogLevel >= 2)
+//		{
+//			sprintf(logBuff, "Token Sent");
+//			logDHCPMess(logBuff, 2);
+//		}
 
 		Sleep(1000 * 300);
 	}
@@ -5247,19 +5069,19 @@ MYDWORD sendRepl(data9 *req)
 	if (req->hostname[0] && !req->opAdded[DHCP_OPTION_HOSTNAME])
 	{
 		op.opt_code = DHCP_OPTION_HOSTNAME;
-		op.size = (unsigned char)strlen(req->hostname);
+		op.size = strlen(req->hostname) + 1;
 		memcpy(op.value, req->hostname, op.size);
 		pvdata(req, &op);
 	}
 
 //	op.opt_code = DHCP_OPTION_SERIAL;
 //	op.size = 4;
-//	putUnsignedLong(op.value, cfig.serial1);
+//	pULong(op.value, cfig.serial1);
 //	pvdata(req, &op);
 
 	*(req->vp) = DHCP_OPTION_END;
 	req->vp++;
-	req->bytes = (int)(req->vp - (MYBYTE*)req->raw);
+	req->bytes = req->vp - (MYBYTE*)req->raw;
 
 	req->dhcpp.header.bp_op = BOOTP_REQUEST;
 	errno = 0;
@@ -5268,22 +5090,21 @@ MYDWORD sendRepl(data9 *req)
 	                    req->raw,
 	                    req->bytes,
 	                    0,
-	                    (sockaddr*)&token.remote,
-	                    sizeof(token.remote));
+						(sockaddr*)&token.remote,
+						sizeof(token.remote));
 
+	errno = WSAGetLastError();
 
-
-	if (req->bytes <= 0)
+	if (errno || req->bytes <= 0)
 	{
-		if (req->bytes==SOCKET_ERROR) errno = WSAGetLastError();
 		cfig.dhcpRepl = 0;
 
 		if (verbatim || cfig.dhcpLogLevel >= 1)
 		{
 			if (cfig.replication == 1)
-				sprintf_s(logBuff, sizeof(logBuff), "WSAError %u Sending DHCP Update to Secondary Server", errno);
+				sprintf(logBuff, "WSAError %i Sending DHCP Update to Secondary Server", errno);
 			else
-				sprintf_s(logBuff, sizeof(logBuff), "WSAError %u Sending DHCP Update to Primary Server", errno);
+				sprintf(logBuff, "WSAError %i Sending DHCP Update to Primary Server", errno);
 
 			logDHCPMess(logBuff, 1);
 		}
@@ -5293,9 +5114,9 @@ MYDWORD sendRepl(data9 *req)
 	else if (verbatim || cfig.dhcpLogLevel >= 2)
 	{
 		if (cfig.replication == 1)
-			sprintf_s(logBuff, sizeof(logBuff), "DHCP Update for host %s (%s) sent to Secondary Server", req->dhcpEntry->mapname, IP2String(ipbuff, sizeof(ipbuff), req->dhcpEntry->ip));
+			sprintf(logBuff, "DHCP Update for host %s (%s) sent to Secondary Server", req->dhcpEntry->mapname, IP2String(ipbuff, req->dhcpEntry->ip));
 		else
-			sprintf_s(logBuff, sizeof(logBuff), "DHCP Update for host %s (%s) sent to Primary Server", req->dhcpEntry->mapname, IP2String(ipbuff, sizeof(ipbuff), req->dhcpEntry->ip));
+			sprintf(logBuff, "DHCP Update for host %s (%s) sent to Primary Server", req->dhcpEntry->mapname, IP2String(ipbuff, req->dhcpEntry->ip));
 
 		logDHCPMess(logBuff, 2);
 	}
@@ -5322,7 +5143,7 @@ MYDWORD sendRepl(data7 *dhcpEntry)
 	req.dhcpp.header.bp_magic_num[1] = 130;
 	req.dhcpp.header.bp_magic_num[2] = 83;
 	req.dhcpp.header.bp_magic_num[3] = 99;
-	strcpy_s(req.hostname, sizeof(req.hostname), dhcpEntry->hostname);
+	strcpy(req.hostname, dhcpEntry->hostname);
 
 	return sendRepl(&req);
 }
@@ -5336,11 +5157,11 @@ void recvRepl(data9 *req)
 
 	MYDWORD ip = req->dhcpp.header.bp_yiaddr ? req->dhcpp.header.bp_yiaddr : req->dhcpp.header.bp_ciaddr;
 
-	if (!ip || !req->dhcpp.header.bp_hlen)
+	if (!ip && !req->dhcpp.header.bp_hlen)
 	{
 //		if (verbatim || cfig.dhcpLogLevel >= 2)
 //		{
-//			sprintf_s(logBuff, sizeof(logBuff), "Token Received");
+//			sprintf(logBuff, "Token Received");
 //			logDHCPMess(logBuff, 2);
 //		}
 
@@ -5351,7 +5172,7 @@ void recvRepl(data9 *req)
 		{
 			if (req->dhcpp.header.bp_sname[0])
 			{
-				sprintf_s(cfig.nsS,sizeof(cfig.nsS), "%s.%s", req->dhcpp.header.bp_sname, cfig.zone);
+				sprintf(cfig.nsS, "%s.%s", req->dhcpp.header.bp_sname, cfig.zone);
 
 				if (isLocal(cfig.zoneServers[1]))
 					add2Cache(req->dhcpp.header.bp_sname, cfig.zoneServers[1], INT_MAX, CTYPE_SERVER_A_AUTH, CTYPE_SERVER_PTR_AUTH);
@@ -5361,26 +5182,25 @@ void recvRepl(data9 *req)
 
 			errno = 0;
 
-			if (SOCKET_ERROR == sendto(cfig.dhcpReplConn.sock,
-				token.raw,
-				token.bytes,
-				0,
-				(sockaddr*)&token.remote,
-				sizeof(token.remote)))
-			{
-//				errno = WSAGetLastError();
+			sendto(cfig.dhcpReplConn.sock,
+					token.raw,
+					token.bytes,
+					0,
+					(sockaddr*)&token.remote,
+					sizeof(token.remote));
+
+//			errno = WSAGetLastError();
 //
-//				if (!errno && (verbatim || cfig.dhcpLogLevel >= 2))
-//				{
-//					sprintf_s(logBuff, sizeof(logBuff), "Token Responded");
-//					logDHCPMess(logBuff, 2);
-//				}
-			}
+//			if (!errno && (verbatim || cfig.dhcpLogLevel >= 2))
+//			{
+//				sprintf(logBuff, "Token Responded");
+//				logDHCPMess(logBuff, 2);
+//			}
 		}
 		else if (cfig.replication == 2)
 		{
 			if (req->dhcpp.header.bp_sname[0])
-				sprintf_s(cfig.nsP,sizeof(cfig.nsP), "%s.%s", req->dhcpp.header.bp_sname, cfig.zone);
+				sprintf(cfig.nsP, "%s.%s", req->dhcpp.header.bp_sname, cfig.zone);
 		}
 
 		return;
@@ -5391,8 +5211,7 @@ void recvRepl(data9 *req)
 	if (rInd >= 0)
 	{
 		int ind  = getIndex(rInd, ip);
-		if (cfig.dhcpRanges[(unsigned int)(req->dhcpEntry->rangeInd)].dhcpEntry)
-			req->dhcpEntry = cfig.dhcpRanges[(unsigned int)rInd].dhcpEntry[ind];
+		req->dhcpEntry = cfig.dhcpRanges[rInd].dhcpEntry[ind];
 
 		if (req->dhcpEntry && !req->dhcpEntry->fixed && strcasecmp(req->dhcpEntry->mapname, req->chaddr))
 			req->dhcpEntry->expiry = 0;
@@ -5405,9 +5224,9 @@ void recvRepl(data9 *req)
 		if (req->dhcpEntry->fixed)
 		{
 			if (cfig.replication == 1)
-				sprintf_s(logBuff, sizeof(logBuff), "DHCP Update ignored for %s (%s) from Secondary Server", req->chaddr, IP2String(ipbuff, sizeof(ipbuff), ip));
+				sprintf(logBuff, "DHCP Update ignored for %s (%s) from Secondary Server", req->chaddr, IP2String(ipbuff, ip));
 			else
-				sprintf_s(logBuff, sizeof(logBuff), "DHCP Update ignored for %s (%s) from Primary Server", req->chaddr, IP2String(ipbuff, sizeof(ipbuff), ip));
+				sprintf(logBuff, "DHCP Update ignored for %s (%s) from Primary Server", req->chaddr, IP2String(ipbuff, ip));
 
 			logDHCPMess(logBuff, 1);
 			return;
@@ -5417,8 +5236,7 @@ void recvRepl(data9 *req)
 			int ind  = getIndex(req->dhcpEntry->rangeInd, req->dhcpEntry->ip);
 
 			if (ind >= 0)
-				if (cfig.dhcpRanges[(unsigned int)(req->dhcpEntry->rangeInd)].dhcpEntry)
-					cfig.dhcpRanges[(unsigned int)(req->dhcpEntry->rangeInd)].dhcpEntry[ind] = 0;
+				cfig.dhcpRanges[req->dhcpEntry->rangeInd].dhcpEntry[ind] = 0;
 		}
 	}
 
@@ -5437,7 +5255,7 @@ void recvRepl(data9 *req)
 
 		if (!req->dhcpEntry)
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "Memory Allocation Error");
+			sprintf(logBuff, "Memory Allocation Error");
 			logDHCPMess(logBuff, 1);
 			return;
 		}
@@ -5446,7 +5264,7 @@ void recvRepl(data9 *req)
 
 		if (!req->dhcpEntry->mapname)
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "Memory Allocation Error");
+			sprintf(logBuff, "Memory Allocation Error");
 			free(req->dhcpEntry);
 			logDHCPMess(logBuff, 1);
 			return;
@@ -5463,11 +5281,16 @@ void recvRepl(data9 *req)
 
 		MYDWORD hangTime = req->lease;
 
-		if (req->rebind > req->lease)
-			hangTime = req->rebind;
+		if (hangTime)
+		{
+			if (req->rebind > hangTime)
+				hangTime = req->rebind;
+		}
+		else
+			hangTime = UINT_MAX;
 
 		setLeaseExpiry(req->dhcpEntry, hangTime);
-		strcpy_s(req->dhcpEntry->hostname, MAX_HOSTNAME_STR_SIZE, req->hostname);
+		strcpy(req->dhcpEntry->hostname, req->hostname);
 
 		_beginthread(updateStateFile, 0, (void*)req->dhcpEntry);
 
@@ -5482,9 +5305,9 @@ void recvRepl(data9 *req)
 		if (verbatim || cfig.dhcpLogLevel >= 2)
 		{
 			if (cfig.replication == 1)
-				sprintf_s(logBuff, sizeof(logBuff), "DHCP Update received for %s (%s) from Secondary Server", req->chaddr, IP2String(ipbuff, sizeof(ipbuff), ip));
+				sprintf(logBuff, "DHCP Update received for %s (%s) from Secondary Server", req->chaddr, IP2String(ipbuff, ip));
 			else
-				sprintf_s(logBuff, sizeof(logBuff), "DHCP Update received for %s (%s) from Primary Server", req->chaddr, IP2String(ipbuff, sizeof(ipbuff), ip));
+				sprintf(logBuff, "DHCP Update received for %s (%s) from Primary Server", req->chaddr, IP2String(ipbuff, ip));
 
 			logDHCPMess(logBuff, 2);
 		}
@@ -5492,9 +5315,9 @@ void recvRepl(data9 *req)
 	else
 	{
 		if (cfig.replication == 1)
-			sprintf_s(logBuff, sizeof(logBuff), "DHCP Update ignored for %s (%s) from Secondary Server", req->chaddr, IP2String(ipbuff, sizeof(ipbuff), ip));
+			sprintf(logBuff, "DHCP Update ignored for %s (%s) from Secondary Server", req->chaddr, IP2String(ipbuff, ip));
 		else
-			sprintf_s(logBuff, sizeof(logBuff), "DHCP Update ignored for %s (%s) from Primary Server", req->chaddr, IP2String(ipbuff, sizeof(ipbuff), ip));
+			sprintf(logBuff, "DHCP Update ignored for %s (%s) from Primary Server", req->chaddr, IP2String(ipbuff, ip));
 
 		logDHCPMess(logBuff, 1);
 		return;
@@ -5508,7 +5331,7 @@ char getRangeInd(MYDWORD ip)
 		MYDWORD iip = htonl(ip);
 
 		for (char k = 0; k < cfig.rangeCount; k++)
-			if (iip >= cfig.dhcpRanges[(unsigned int)k].rangeStart && iip <= cfig.dhcpRanges[(unsigned int)k].rangeEnd)
+			if (iip >= cfig.dhcpRanges[k].rangeStart && iip <= cfig.dhcpRanges[k].rangeEnd)
 				return k;
 	}
 	return -1;
@@ -5519,8 +5342,8 @@ int getIndex(char rangeInd, MYDWORD ip)
 	if (ip && rangeInd >= 0 && rangeInd < cfig.rangeCount)
 	{
 		MYDWORD iip = htonl(ip);
-		if (iip >= cfig.dhcpRanges[(unsigned int)rangeInd].rangeStart && iip <= cfig.dhcpRanges[(unsigned int)rangeInd].rangeEnd)
-			return (iip - cfig.dhcpRanges[(unsigned int)rangeInd].rangeStart);
+		if (iip >= cfig.dhcpRanges[rangeInd].rangeStart && iip <= cfig.dhcpRanges[rangeInd].rangeEnd)
+			return (iip - cfig.dhcpRanges[rangeInd].rangeStart);
 	}
 	return -1;
 }
@@ -5545,7 +5368,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 
 	while (readSection(raw, f))
 	{
-		//MYBYTE *ddp = dp;
+		MYBYTE *ddp = dp;
 		MYBYTE hoption[256];
 		MYBYTE valSize = sizeof(hoption) - 1;
 		MYBYTE opTag = 0;
@@ -5559,7 +5382,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 
 		if (!name[0])
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] invalid option %s ignored", sectionName, raw);
+			sprintf(logBuff, "Warning: section [%s] invalid option %s ignored", sectionName, raw);
 			logDHCPMess(logBuff, 1);
 			continue;
 		}
@@ -5570,7 +5393,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 				addDHCPRange(value);
 			else
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s not allowed in this section, option ignored", sectionName, raw);
+				sprintf(logBuff, "Warning: section [%s] option %s not allowed in this section, option ignored", sectionName, raw);
 				logDHCPMess(logBuff, 1);
 			}
 			continue;
@@ -5579,18 +5402,16 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 		{
 			if (!strcasecmp(sectionName, GLOBALOPTIONS) || !strcasecmp(sectionName, RANGESET))
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s not allowed in this section, option ignored", sectionName, raw);
+				sprintf(logBuff, "Warning: section [%s] option %s not allowed in this section, option ignored", sectionName, raw);
 				logDHCPMess(logBuff, 1);
 			}
 			else if (!isIP(value) && strcasecmp(value, "0.0.0.0"))
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option Invalid IP Addr %s option ignored", sectionName, value);
+				sprintf(logBuff, "Warning: section [%s] option Invalid IP Addr %s option ignored", sectionName, value);
 				logDHCPMess(logBuff, 1);
 			}
 			else
-			{
-				inet_pton(AF_INET, value, &(optionData->ip));
-			}
+				optionData->ip = inet_addr(value);
 
 			continue;
 		}
@@ -5600,7 +5421,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 				addMacRange(optionData->rangeSetInd, value);
 			else
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s not allowed in this section, option ignored", sectionName, raw);
+				sprintf(logBuff, "Warning: section [%s] option %s not allowed in this section, option ignored", sectionName, raw);
 				logDHCPMess(logBuff, 1);
 			}
 			continue;
@@ -5616,10 +5437,10 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 			myTrim(value, value);
 
 			if (strlen(value) <= UCHAR_MAX)
-				valSize = (unsigned char)strlen(value);
+				valSize = strlen(value);
 			else
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s value too big, option ignored", sectionName, raw);
+				sprintf(logBuff, "Warning: section [%s] option %s value too big, option ignored", sectionName, raw);
 				logDHCPMess(logBuff, 1);
 				continue;
 			}
@@ -5633,7 +5454,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 			if (errorPos)
 			{
 				valType = 1;
-				valSize = (unsigned char)strlen(value);
+				valSize = strlen(value);
 			}
 			else
 				memcpy(value, hoption, valSize);
@@ -5644,7 +5465,6 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 			valType = 5;
 		else if (isInt(value))
 			valType = 6;
-//		else if ((strchr(value, '.') && (opType == 2 || opType == 3 || opType == 8 || opType == 0)) || (!strchr(value, '.') && strchr(value, ',')))
 		else if (strchr(value, '.') || strchr(value, ','))
 		{
 			valType = 2;
@@ -5653,7 +5473,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 
 			if (numbytes > 255)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, too many bytes, entry ignored", sectionName, raw);
+				sprintf(logBuff, "Warning: section [%s] option %s, too many bytes, entry ignored", sectionName, raw);
 				logDHCPMess(logBuff, 1);
 				continue;
 			}
@@ -5679,7 +5499,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 				else
 				{
 					valType = 1;
-					valSize = (unsigned char)strlen(value);
+					valSize = strlen(value);
 				}
 			}
 		}
@@ -5687,12 +5507,12 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 		{
 			if (strlen(value) <= UCHAR_MAX)
 			{
-				valSize = (unsigned char)strlen(value);
+				valSize = strlen(value);
 				valType = 1;
 			}
 			else
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s value too long, option ignored", sectionName, raw);
+				sprintf(logBuff, "Warning: section [%s] option %s value too long, option ignored", sectionName, raw);
 				logDHCPMess(logBuff, 1);
 				continue;
 			}
@@ -5704,7 +5524,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 				addVendClass(optionData->rangeSetInd, value, valSize);
 			else
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s not allowed in this section, option ignored", sectionName, raw);
+				sprintf(logBuff, "Warning: section [%s] option %s not allowed in this section, option ignored", sectionName, raw);
 				logDHCPMess(logBuff, 1);
 			}
 			continue;
@@ -5715,7 +5535,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 				addUserClass(optionData->rangeSetInd, value, valSize);
 			else
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s not allowed in this section, option ignored", sectionName, raw);
+				sprintf(logBuff, "Warning: section [%s] option %s not allowed in this section, option ignored", sectionName, raw);
 				logDHCPMess(logBuff, 1);
 			}
 			continue;
@@ -5724,17 +5544,17 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 		{
 			if (valSize != 4)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] invalid value %s, option ignored", sectionName, raw);
+				sprintf(logBuff, "Warning: section [%s] invalid value %s, option ignored", sectionName, raw);
 				logDHCPMess(logBuff, 1);
 			}
 			else if (!strcasecmp(sectionName, RANGESET))
 			{
 				addServer(cfig.rangeSet[optionData->rangeSetInd].subnetIP, MAX_RANGE_FILTERS, fIP(value));
-				cfig.hasFilter = 1;
+				cfig.hasFilter = true;
 			}
 			else
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s not allowed in this section, option ignored", sectionName, raw);
+				sprintf(logBuff, "Warning: section [%s] option %s not allowed in this section, option ignored", sectionName, raw);
 				logDHCPMess(logBuff, 1);
 			}
 			continue;
@@ -5743,17 +5563,17 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 		{
 			if (valSize != 4)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] invalid value %s, option ignored", sectionName, raw);
+				sprintf(logBuff, "Warning: section [%s] invalid value %s, option ignored", sectionName, raw);
 				logDHCPMess(logBuff, 1);
 			}
 			else if (!strcasecmp(sectionName, RANGESET))
 			{
 				cfig.rangeSet[optionData->rangeSetInd].targetIP = fIP(value);
-				//printf("TARGET IP %s set RangeSetInd  %d\n", IP2String(ipbuff, sizeof(ipbuff), cfig.rangeSet[optionData->rangeSetInd].targetIP), optionData->rangeSetInd);
+				//printf("TARGET IP %s set RangeSetInd  %d\n", IP2String(ipbuff, cfig.rangeSet[optionData->rangeSetInd].targetIP), optionData->rangeSetInd);
 			}
 			else
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s not allowed in this section, option ignored", sectionName, raw);
+				sprintf(logBuff, "Warning: section [%s] option %s not allowed in this section, option ignored", sectionName, raw);
 				logDHCPMess(logBuff, 1);
 			}
 			continue;
@@ -5765,7 +5585,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 		{
 			if (atoi(name) < 1 || atoi(name) >= 254)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] invalid option %s, ignored", sectionName, raw);
+				sprintf(logBuff, "Warning: section [%s] invalid option %s, ignored", sectionName, raw);
 				logDHCPMess(logBuff, 1);
 				continue;
 			}
@@ -5785,7 +5605,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 
 		if (!opTag)
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] invalid option %s, ignored", sectionName, raw);
+			sprintf(logBuff, "Warning: section [%s] invalid option %s, ignored", sectionName, raw);
 			logDHCPMess(logBuff, 1);
 			continue;
 		}
@@ -5793,12 +5613,12 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 		if (!opType)
 			opType = valType;
 
-		//sprintf_s(logBuff, sizeof(logBuff), "Tag %i ValType %i opType %i value=%s size=%u", opTag, valType, opType, value, valSize);
+		//sprintf(logBuff, "Tag %i ValType %i opType %i value=%s size=%u", opTag, valType, opType, value, valSize);
 		//logDHCPMess(logBuff, 1);
 
 		if (op_specified[opTag])
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] duplicate option %s, ignored", sectionName, raw);
+			sprintf(logBuff, "Warning: section [%s] duplicate option %s, ignored", sectionName, raw);
 			logDHCPMess(logBuff, 1);
 			continue;
 		}
@@ -5819,7 +5639,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 			}
 			else
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, no more space for options", sectionName, raw);
+				sprintf(logBuff, "Warning: section [%s] option %s, no more space for options", sectionName, raw);
 				logDHCPMess(logBuff, 1);
 			}
 			continue;
@@ -5834,12 +5654,12 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 
 				if (valType != 1 && valType != 2)
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, need string value, option ignored", sectionName, raw);
+					sprintf(logBuff, "Warning: section [%s] option %s, need string value, option ignored", sectionName, raw);
 					logDHCPMess(logBuff, 1);
 				}
-				else if (opTag == DHCP_OPTION_DOMAINNAME)
+				else if (!strcasecmp(serviceName, "DUALServer") && opTag == DHCP_OPTION_DOMAINNAME)
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %u should be under [DOMAIN_NAME], ignored", sectionName, opTag);
+					sprintf(logBuff, "Warning: section [%s] Domain Name %s should be in section [DOMAIN_NAME], ignored", sectionName, value);
 					logDHCPMess(logBuff, 1);
 					continue;
 				}
@@ -5855,7 +5675,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 				}
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, no more space for options", sectionName, raw);
+					sprintf(logBuff, "Warning: section [%s] option %s, no more space for options", sectionName, raw);
 					logDHCPMess(logBuff, 1);
 				}
 			}
@@ -5868,13 +5688,13 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 				{
 					if (opType == 3 && valSize % 4)
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, missing/extra bytes/octates in IP, option ignored", sectionName, raw);
+						sprintf(logBuff, "Warning: section [%s] option %s, missing/extra bytes/octates in IP, option ignored", sectionName, raw);
 						logDHCPMess(logBuff, 1);
 						continue;
 					}
 					else if (opType == 8 && valSize % 8)
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, some values not in IP/Mask form, option ignored", sectionName, raw);
+						sprintf(logBuff, "Warning: section [%s] option %s, some values not in IP/Mask form, option ignored", sectionName, raw);
 						logDHCPMess(logBuff, 1);
 						continue;
 					}
@@ -5883,7 +5703,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 					{
 						if (valSize != 4 || !checkMask(fIP(value)))
 						{
-							sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] Invalid subnetmask %s, option ignored", sectionName, raw);
+							sprintf(logBuff, "Warning: section [%s] Invalid subnetmask %s, option ignored", sectionName, raw);
 							logDHCPMess(logBuff, 1);
 							continue;
 						}
@@ -5903,13 +5723,13 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 					}
 					else
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, no more space for options", sectionName, raw);
+						sprintf(logBuff, "Warning: section [%s] option %s, no more space for options", sectionName, raw);
 						logDHCPMess(logBuff, 1);
 					}
 				}
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, Invalid value, should be one or more IP/4 Bytes", sectionName, raw);
+					sprintf(logBuff, "Warning: section [%s] option %s, Invalid value, should be one or more IP/4 Bytes", sectionName, raw);
 					logDHCPMess(logBuff, 1);
 				}
 			}
@@ -5925,7 +5745,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 					j = atol(value);
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, value should be integer between 0 & %u or 4 bytes, option ignored", sectionName, name, UINT_MAX);
+					sprintf(logBuff, "Warning: section [%s] option %s, value should be integer between 0 & %u or 4 bytes, option ignored", sectionName, name, UINT_MAX);
 					logDHCPMess(logBuff, 1);
 					continue;
 				}
@@ -5935,18 +5755,23 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 					if (j == 0)
 						j = UINT_MAX;
 
-					if (!strcasecmp(sectionName, GLOBALOPTIONS))
+					if (!strcasecmp(serviceName, "DUALServer"))
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s not allowed in this section, please set it in [TIMINGS] section", sectionName, raw);
-						logDHCPMess(logBuff, 1);
-						continue;
+						if (!strcasecmp(sectionName, GLOBALOPTIONS))
+						{
+							sprintf(logBuff, "Warning: section [%s] option %s not allowed in this section, please set it in [TIMINGS] section", sectionName, raw);
+							logDHCPMess(logBuff, 1);
+							continue;
+						}
+						else if (j < cfig.lease)
+						{
+							sprintf(logBuff, "Warning: section [%s] option %s value should be more then %u (Default Lease), ignored", sectionName, name, cfig.lease);
+							logDHCPMess(logBuff, 1);
+							continue;
+						}
 					}
-					else if (j < cfig.lease)
-					{
-						sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s value should be more then %u (Default Lease), ignored", sectionName, name, cfig.lease);
-						logDHCPMess(logBuff, 1);
-						continue;
-					}
+					else if (!strcasecmp(serviceName, "OpenDHCPServer") && !strcasecmp(sectionName, GLOBALOPTIONS))
+						cfig.lease = j;
 				}
 
 				if (buffsize > 6)
@@ -5955,13 +5780,13 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 					dp++;
 					*dp = 4;
 					dp++;
-					dp += putUnsignedLong(dp, j);
+					dp += pULong(dp, j);
 					buffsize -= 6;
 					//printf("%s=%u=%u\n",opData[op_index].opName,opData[op_index].opType,htonl(j));
 				}
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, no more space for options", sectionName, raw);
+					sprintf(logBuff, "Warning: section [%s] option %s, no more space for options", sectionName, raw);
 					logDHCPMess(logBuff, 1);
 				}
 			}
@@ -5974,10 +5799,10 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 				if (valType == 2 && valSize == 2)
 					j = fUShort(value);
 				else if (valType == 5 || valType == 6)
-					j = atoi(value);
+					j = atol(value);
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, value should be between 0 & %u or 2 bytes, option ignored", sectionName, name, USHRT_MAX);
+					sprintf(logBuff, "Warning: section [%s] option %s, value should be between 0 & %u or 2 bytes, option ignored", sectionName, name, USHRT_MAX);
 					logDHCPMess(logBuff, 1);
 					continue;
 				}
@@ -5988,12 +5813,12 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 					dp++;
 					*dp = 2;
 					dp++;
-					dp += putUnsignedShort(dp, j);
+					dp += pUShort(dp, j);
 					buffsize -= 4;
 				}
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, no more space for options", sectionName, raw);
+					sprintf(logBuff, "Warning: section [%s] option %s, no more space for options", sectionName, raw);
 					logDHCPMess(logBuff, 1);
 				}
 			}
@@ -6006,10 +5831,10 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 				if (valType == 2 && valSize == 1)
 					j = *value;
 				else if (valType == 6)
-					j = atoi(value);
+					j = atol(value);
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, value should be between 0 & %u or single byte, option ignored", sectionName, name, UCHAR_MAX);
+					sprintf(logBuff, "Warning: section [%s] option %s, value should be between 0 & %u or single byte, option ignored", sectionName, name, UCHAR_MAX);
 					logDHCPMess(logBuff, 1);
 					continue;
 				}
@@ -6026,7 +5851,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 				}
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, no more space for options", sectionName, raw);
+					sprintf(logBuff, "Warning: section [%s] option %s, no more space for options", sectionName, raw);
 					logDHCPMess(logBuff, 1);
 				}
 			}
@@ -6046,7 +5871,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 					j = atoi(value);
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, value should be yes/on/true/1 or no/off/false/0, option ignored", sectionName, raw);
+					sprintf(logBuff, "Warning: section [%s] option %s, value should be yes/on/true/1 or no/off/false/0, option ignored", sectionName, raw);
 					logDHCPMess(logBuff, 1);
 					continue;
 				}
@@ -6063,7 +5888,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 				}
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, no more space for options", sectionName, raw);
+					sprintf(logBuff, "Warning: section [%s] option %s, no more space for options", sectionName, raw);
 					logDHCPMess(logBuff, 1);
 				}
 			}
@@ -6080,7 +5905,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 
 				if (opType == 2 && valType != 2)
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, value should be comma separated bytes or hex string, option ignored", sectionName, raw);
+					sprintf(logBuff, "Warning: section [%s] option %s, value should be comma separated bytes or hex string, option ignored", sectionName, raw);
 					logDHCPMess(logBuff, 1);
 					continue;
 				}
@@ -6096,7 +5921,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 				}
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: section [%s] option %s, no more space for options", sectionName, raw);
+					sprintf(logBuff, "Warning: section [%s] option %s, no more space for options", sectionName, raw);
 					logDHCPMess(logBuff, 1);
 				}
 			}
@@ -6111,7 +5936,7 @@ void loadOptions(FILE *f, const char *sectionName, data20 *optionData)
 
 	*dp = DHCP_OPTION_END;
 	dp++;
-	optionData->optionSize = (unsigned short)(dp - optionData->options);
+	optionData->optionSize = (dp - optionData->options);
 	//printf("section=%s buffersize = %u option size=%u\n", sectionName, buffsize, optionData->optionSize);
 }
 
@@ -6186,16 +6011,10 @@ void addDHCPRange(char *dp)
 	char value[512];
 	mySplit(name, value, dp, '-');
 
-	sprintf_s(logBuff, sizeof(logBuff), "Loading DHCP range %s to %s", name, value);
-	logDHCPMess(logBuff, 1);
-
 	if (isIP(name) && isIP(value))
 	{
-		inet_pton(AF_INET, name, &rs);
-		rs = ntohl(rs);
-		inet_pton(AF_INET, value, &re);
-		re = ntohl(re);
-
+		rs = htonl(inet_addr(name));
+		re = htonl(inet_addr(value));
 
 		if (rs && re && rs <= re)
 		{
@@ -6211,7 +6030,7 @@ void addDHCPRange(char *dp)
 						|| (range->rangeStart >= rs && range->rangeStart <= re)
 						|| (range->rangeEnd >= rs && range->rangeEnd <= re))
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: DHCP Range %s overlaps with another range, ignored", dp);
+					sprintf(logBuff, "Warning: DHCP Range %s overlaps with another range, ignored", dp);
 					logDHCPMess(logBuff, 1);
 					return;
 				}
@@ -6223,26 +6042,18 @@ void addDHCPRange(char *dp)
 				range = &cfig.dhcpRanges[m];
 				range->rangeStart = rs;
 				range->rangeEnd = re;
-				sprintf_s(logBuff, sizeof(logBuff), "Allocating %d slots for DHCP Range", (re - rs + 1));
-				logDHCPMess(logBuff, 1);
 				range->expiry = (time_t*)calloc((re - rs + 1), sizeof(time_t));
 				range->dhcpEntry = (data7**)calloc((re - rs + 1), sizeof(data7*));
 
 				if (!range->expiry || !range->dhcpEntry)
 				{
 					if (range->expiry)
-					{
 						free(range->expiry);
-						range->expiry = NULL;
-					}
 
 					if (range->dhcpEntry)
-					{
 						free(range->dhcpEntry);
-						range->dhcpEntry = NULL;
-					}
 
-					sprintf_s(logBuff, sizeof(logBuff), "DHCP Ranges Load, Memory Allocation Error");
+					sprintf(logBuff, "DHCP Ranges Load, Memory Allocation Error");
 					logDHCPMess(logBuff, 1);
 					return;
 				}
@@ -6250,13 +6061,13 @@ void addDHCPRange(char *dp)
 		}
 		else
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "Section [%s] Invalid DHCP range %s in ini file, ignored", RANGESET, dp);
+			sprintf(logBuff, "Section [%s] Invalid DHCP range %s in ini file, ignored", RANGESET, dp);
 			logDHCPMess(logBuff, 1);
 		}
 	}
 	else
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "Section [%s] Invalid DHCP range %s in ini file, ignored", RANGESET, dp);
+		sprintf(logBuff, "Section [%s] Invalid DHCP range %s in ini file, ignored", RANGESET, dp);
 		logDHCPMess(logBuff, 1);
 	}
 }
@@ -6268,7 +6079,7 @@ void addVendClass(MYBYTE rangeSetInd, char *vendClass, MYBYTE vendClassSize)
 
 	MYBYTE i = 0;
 
-	for (; i < MAX_RANGE_FILTERS && rangeSet->vendClassSize[i]; i++);
+	for (; i <= MAX_RANGE_FILTERS && rangeSet->vendClassSize[i]; i++);
 
 	if (i >= MAX_RANGE_FILTERS || !vendClassSize)
 		return;
@@ -6277,7 +6088,7 @@ void addVendClass(MYBYTE rangeSetInd, char *vendClass, MYBYTE vendClassSize)
 
 	if(!rangeSet->vendClass[i])
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "Vendor Class Load, Memory Allocation Error");
+		sprintf(logBuff, "Vendor Class Load, Memory Allocation Error");
 		logDHCPMess(logBuff, 1);
 	}
 	else
@@ -6297,7 +6108,7 @@ void addUserClass(MYBYTE rangeSetInd, char *userClass, MYBYTE userClassSize)
 
 	MYBYTE i = 0;
 
-	for (; i < MAX_RANGE_FILTERS && rangeSet->userClassSize[i]; i++);
+	for (; i <= MAX_RANGE_FILTERS && rangeSet->userClassSize[i]; i++);
 
 	if (i >= MAX_RANGE_FILTERS || !userClassSize)
 		return;
@@ -6306,7 +6117,7 @@ void addUserClass(MYBYTE rangeSetInd, char *userClass, MYBYTE userClassSize)
 
 	if(!rangeSet->userClass[i])
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "Vendor Class Load, Memory Allocation Error");
+		sprintf(logBuff, "Vendor Class Load, Memory Allocation Error");
 		logDHCPMess(logBuff, 1);
 	}
 	else
@@ -6328,7 +6139,7 @@ void addMacRange(MYBYTE rangeSetInd, char *macRange)
 
 		MYBYTE i = 0;
 
-		for (; i < MAX_RANGE_FILTERS && rangeSet->macSize[i]; i++);
+		for (; i <= MAX_RANGE_FILTERS && rangeSet->macSize[i]; i++);
 
 		if (i >= MAX_RANGE_FILTERS)
 			return;
@@ -6342,40 +6153,38 @@ void addMacRange(MYBYTE rangeSetInd, char *macRange)
 
 		if(!name[0] || !value[0])
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "Section [%s], invalid Filter_Mac_Range %s, ignored", RANGESET, macRange);
+			sprintf(logBuff, "Section [%s], invalid Filter_Mac_Range %s, ignored", RANGESET, macRange);
 			logDHCPMess(logBuff, 1);
 		}
 		else
 		{
 			MYBYTE macSize1 = 16;
 			MYBYTE macSize2 = 16;
-			MYBYTE *macStart = (MYBYTE*)calloc(sizeof(char), macSize1);
-			MYBYTE *macEnd = (MYBYTE*)calloc(sizeof(char), macSize2);
+			MYBYTE *macStart = (MYBYTE*)calloc(1, macSize1);
+			MYBYTE *macEnd = (MYBYTE*)calloc(1, macSize2);
 
 			if(!macStart || !macEnd)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "DHCP Range Load, Memory Allocation Error");
+				sprintf(logBuff, "DHCP Range Load, Memory Allocation Error");
 				logDHCPMess(logBuff, 1);
-				if (macStart) free(macStart);
-				if (macEnd) free(macEnd);
 			}
 			else if (getHexValue(macStart, name, &macSize1) || getHexValue(macEnd, value, &macSize2))
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Section [%s], Invalid character in Filter_Mac_Range %s", RANGESET, macRange);
+				sprintf(logBuff, "Section [%s], Invalid character in Filter_Mac_Range %s", RANGESET, macRange);
 				logDHCPMess(logBuff, 1);
 				free(macStart);
 				free(macEnd);
 			}
 			else if (memcmp(macStart, macEnd, 16) > 0)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Section [%s], Invalid Filter_Mac_Range %s, (higher bound specified on left), ignored", RANGESET, macRange);
+				sprintf(logBuff, "Section [%s], Invalid Filter_Mac_Range %s, (higher bound specified on left), ignored", RANGESET, macRange);
 				logDHCPMess(logBuff, 1);
 				free(macStart);
 				free(macEnd);
 			}
 			else if (macSize1 != macSize2)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Section [%s], Invalid Filter_Mac_Range %s, (start/end size mismatched), ignored", RANGESET, macRange);
+				sprintf(logBuff, "Section [%s], Invalid Filter_Mac_Range %s, (start/end size mismatched), ignored", RANGESET, macRange);
 				logDHCPMess(logBuff, 1);
 				free(macStart);
 				free(macEnd);
@@ -6397,30 +6206,26 @@ void loadDHCP()
 	char ipbuff[32];
 	char logBuff[512];
 	data7 *dhcpEntry = NULL;
+	data8 dhcpData;
 	char mapname[64];
 	FILE *f = NULL;
 	FILE *ff = NULL;
 
-	if ((f = openSection(GLOBALOPTIONS, 1)))
+	if (f = openSection(GLOBALOPTIONS, 1))
 	{
 		data20 optionData;
 		loadOptions(f, GLOBALOPTIONS, &optionData);
 		cfig.options = (MYBYTE*)calloc(1, optionData.optionSize);
-		if (cfig.options)
-		{
-			memcpy(cfig.options, optionData.options, optionData.optionSize);
-		}
+		memcpy(cfig.options, optionData.options, optionData.optionSize);
 		cfig.mask = optionData.mask;
 	}
 
 	if (!cfig.mask)
-	{
-		inet_pton(AF_INET, "255.255.255.0", &(cfig.mask));
-	}
+		cfig.mask = inet_addr("255.255.255.0");
 
 	for (MYBYTE i = 1; i <= MAX_RANGE_SETS ; i++)
 	{
-		if ((f = openSection(RANGESET, i)))
+		if (f = openSection(RANGESET, i))
 		{
 			MYBYTE m = cfig.rangeCount;
 			data20 optionData;
@@ -6432,10 +6237,7 @@ void loadDHCP()
 			if (optionData.optionSize > 3)
 			{
 				options = (MYBYTE*)calloc(1, optionData.optionSize);
-				if (options)
-				{
-					memcpy(options, optionData.options, optionData.optionSize);
-				}
+				memcpy(options, optionData.options, optionData.optionSize);
 			}
 
 			for (; m < MAX_DHCP_RANGES && cfig.dhcpRanges[m].rangeStart; m++)
@@ -6450,35 +6252,36 @@ void loadDHCP()
 			break;
 	}
 
-	//printf("%s\n", IP2String(ipbuff, sizeof(ipbuff), cfig.mask));
+	//printf("%s\n", IP2String(ipbuff, cfig.mask));
 
 	for (char rangeInd = 0; rangeInd < cfig.rangeCount; rangeInd++)
 	{
-		if (!cfig.dhcpRanges[(unsigned int)rangeInd].mask)
-			cfig.dhcpRanges[(unsigned int)rangeInd].mask = cfig.mask;
+		if (!cfig.dhcpRanges[rangeInd].mask)
+			cfig.dhcpRanges[rangeInd].mask = cfig.mask;
 
-		for (MYDWORD iip = cfig.dhcpRanges[(unsigned int)rangeInd].rangeStart; iip <= cfig.dhcpRanges[(unsigned int)rangeInd].rangeEnd; iip++)
+		for (MYDWORD iip = cfig.dhcpRanges[rangeInd].rangeStart; iip <= cfig.dhcpRanges[rangeInd].rangeEnd; iip++)
 		{
 			MYDWORD ip = htonl(iip);
 
-			if ((cfig.dhcpRanges[(unsigned int)rangeInd].mask | (~ip)) == UINT_MAX || (cfig.dhcpRanges[(unsigned int)rangeInd].mask | ip) == UINT_MAX)
-				if (cfig.dhcpRanges[(unsigned int)rangeInd].expiry)
-					cfig.dhcpRanges[(unsigned int)rangeInd].expiry[iip - cfig.dhcpRanges[(unsigned int)rangeInd].rangeStart] = INT_MAX;
+			if ((cfig.dhcpRanges[rangeInd].mask | (~ip)) == UINT_MAX || (cfig.dhcpRanges[rangeInd].mask | ip) == UINT_MAX)
+				cfig.dhcpRanges[rangeInd].expiry[iip - cfig.dhcpRanges[rangeInd].rangeStart] = INT_MAX;
 		}
 	}
 
-	if ((f = openSection(GLOBALOPTIONS, 1)))
+	if (f = openSection(GLOBALOPTIONS, 1))
 		lockOptions(f);
 
 	for (MYBYTE i = 1; i <= MAX_RANGE_SETS ;i++)
 	{
-		if ((f = openSection(RANGESET, i)))
+		if (f = openSection(RANGESET, i))
 			lockOptions(f);
 		else
 			break;
 	}
 
-	if (0 == fopen_s(&ff, iniFile, "rt"))
+	ff = fopen(iniFile, "rt");
+
+	if (ff)
 	{
 		char sectionName[512];
 
@@ -6508,19 +6311,18 @@ void loadDHCP()
 			MYBYTE hexValue[UCHAR_MAX];
 			MYBYTE hexValueSize = sizeof(hexValue);
 			data20 optionData;
-			memset(&optionData, 0, sizeof(optionData));
 
 			if (strlen(sectionName) <= 48 && !getHexValue(hexValue, sectionName, &hexValueSize))
 			{
 				if (hexValueSize <= 16)
 				{
-					dhcpEntry = findDHCPEntry(hex2String(mapname, sizeof(mapname), hexValue, hexValueSize));
+					dhcpEntry = findDHCPEntry(hex2String(mapname, hexValue, hexValueSize));
 
 					if (!dhcpEntry)
 					{
-						if ((f = openSection(sectionName, 1)))
+						if (f = openSection(sectionName, 1))
 							loadOptions(f, sectionName, &optionData);
-						if ((f = openSection(sectionName, 1)))
+						if (f = openSection(sectionName, 1))
 							lockOptions(f);
 
 						dhcpMap::iterator p = dhcpCache.begin();
@@ -6541,65 +6343,44 @@ void loadDHCP()
 							dhcpEntry = createCache(&lump);
 
 							if (!dhcpEntry)
-							{
-								fclose(ff);
 								return;
-							}
-/*
-							dhcpEntry = (data7*)calloc(1, sizeof(data7));
 
-							if (!dhcpEntry)
-							{
-								sprintf_s(logBuff, sizeof(logBuff), "Host Options Load, Memory Allocation Error");
-								logDHCPMess(logBuff, 1);
-								fclose(ff);
-								return;
-							}
-
-							dhcpEntry->mapname = cloneString(mapname);
-
-							if (!dhcpEntry->mapname)
-							{
-								sprintf_s(logBuff, sizeof(logBuff), "Host Data Load, Memory Allocation Error");
-								logDHCPMess(logBuff, 1);
-								fclose(ff);
-								return;
-							}
-*/
 							dhcpEntry->ip = optionData.ip;
 							dhcpEntry->rangeInd = getRangeInd(optionData.ip);
 							dhcpEntry->fixed = 1;
-							lockIP(optionData.ip);
+							dhcpEntry->expiry = 0;
 							dhcpCache[dhcpEntry->mapname] = dhcpEntry;
-							//printf("%s=%s=%s size=%u %u\n", mapname, dhcpEntry->mapname, IP2String(ipbuff, sizeof(ipbuff), optionData.ip), optionData.optionSize, dhcpEntry->options);
+							setLeaseExpiry(dhcpEntry);
+							lockIP(optionData.ip);
+							//printf("%s=%s=%s size=%u %u\n", mapname, dhcpEntry->mapname, IP2String(ipbuff, optionData.ip), optionData.optionSize, dhcpEntry->options);
 						}
 						else
 						{
-							sprintf_s(logBuff, sizeof(logBuff), "Static DHCP Host [%s] Duplicate IP Address %s, Entry ignored", sectionName, IP2String(ipbuff, sizeof(ipbuff), optionData.ip));
+							sprintf(logBuff, "Static DHCP Host [%s] Duplicate IP Address %s, Entry ignored", sectionName, IP2String(ipbuff, optionData.ip));
 							logDHCPMess(logBuff, 1);
 						}
 					}
 					else
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "Duplicate Static DHCP Host [%s] ignored", sectionName);
+						sprintf(logBuff, "Duplicate Static DHCP Host [%s] ignored", sectionName);
 						logDHCPMess(logBuff, 1);
 					}
 				}
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Invalid Static DHCP Host MAC Addr size [%s], ignored", sectionName);
+					sprintf(logBuff, "Invalid Static DHCP Host MAC Addr size, ignored", sectionName);
 					logDHCPMess(logBuff, 1);
 				}
 			}
 			else
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Invalid Static DHCP Host MAC Addr [%s] ignored", sectionName);
+				sprintf(logBuff, "Invalid Static DHCP Host MAC Addr [%s] ignored", sectionName);
 				logDHCPMess(logBuff, 1);
 			}
 
 			if (!optionData.ip)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: No IP Address for DHCP Static Host %s specified", sectionName);
+				sprintf(logBuff, "Warning: No IP Address for DHCP Static Host %s specified", sectionName);
 				logDHCPMess(logBuff, 1);
 			}
 		}
@@ -6607,21 +6388,20 @@ void loadDHCP()
 		fclose(ff);
 	}
 
+	f = fopen(leaFile, "rb");
 
-	if (0== fopen_s(&ff, leaFile, "rb"))
+	if (f)
 	{
-		data8 dhcpData;
-
-		while (fread(&dhcpData, sizeof(data8), 1, ff))
+		while (fread(&dhcpData, sizeof(data8), 1, f))
 		{
 			char rangeInd = -1;
-			//int ind = -1;
+			int ind = -1;
+			//sprintf(logBuff, "Loading %s=%s", dhcpData.hostname, IP2String(ipbuff, dhcpData.ip));
+			//logDHCPMess(logBuff, 1);
 
-			//printf("Loading %s=%s\n", dhcpData.hostname, IP2String(ipbuff, sizeof(ipbuff), dhcpData.ip));
-
-			if (dhcpData.bp_hlen <= 16 && !findServer(network.allServers, MAX_SERVERS, dhcpData.ip))
+			if (dhcpData.expiry > (t - 31*24*3600) && dhcpData.bp_hlen <= 16 && !findServer(network.allServers, MAX_SERVERS, dhcpData.ip))
 			{
-				hex2String(mapname, sizeof(mapname), dhcpData.bp_chaddr, dhcpData.bp_hlen);
+				hex2String(mapname, dhcpData.bp_chaddr, dhcpData.bp_hlen);
 
 				dhcpMap::iterator p = dhcpCache.begin();
 
@@ -6629,11 +6409,11 @@ void loadDHCP()
 				{
 					dhcpEntry = p->second;
 
-					if (dhcpEntry && (!strcasecmp(mapname, dhcpEntry->mapname) || dhcpEntry->ip == dhcpData.ip))
+					if (!dhcpEntry || (!strcasecmp(mapname, dhcpEntry->mapname) || dhcpEntry->ip == dhcpData.ip))
 						break;
 				}
 
-				if (p != dhcpCache.end() && (strcasecmp(mapname, dhcpEntry->mapname) || dhcpEntry->ip != dhcpData.ip))
+				if ((p != dhcpCache.end()) && (strcasecmp(mapname, dhcpEntry->mapname) || dhcpEntry->ip != dhcpData.ip))
 					continue;
 
 				dhcpEntry = findDHCPEntry(mapname);
@@ -6645,46 +6425,18 @@ void loadDHCP()
 					lump.cType = CTYPE_DHCP_ENTRY;
 					lump.mapname = mapname;
 					dhcpEntry = createCache(&lump);
-/*
-					dhcpEntry = (data7*)calloc(1, sizeof(data7));
-
-					if (!dhcpEntry)
-					{
-						sprintf_s(logBuff, sizeof(logBuff), "Loading Existing Leases, Memory Allocation Error");
-						logDHCPMess(logBuff, 1);
-						fclose(ff);
-						return;
-					}
-
-					dhcpEntry->mapname = cloneString(mapname);
-
-					if (!dhcpEntry->mapname)
-					{
-						sprintf_s(logBuff, sizeof(logBuff), "Loading Existing Leases, Memory Allocation Error");
-						free(dhcpEntry);
-						logDHCPMess(logBuff, 1);
-						fclose(ff);
-						return;
-					}
-*/
 				}
 
 				if (dhcpEntry)
 				{
 					dhcpCache[dhcpEntry->mapname] = dhcpEntry;
+					dhcpEntry->subnetFlg = dhcpData.subnetFlg;
 					dhcpEntry->ip = dhcpData.ip;
 					dhcpEntry->rangeInd = rangeInd;
 					dhcpEntry->expiry = dhcpData.expiry;
 					dhcpEntry->local = dhcpData.local;
 					dhcpEntry->display = true;
-
-					if (dhcpData.hostname[0])
-					{
-						dhcpEntry->hostname = (char *)calloc(1, MAX_HOSTNAME_STR_SIZE);
-						if (dhcpEntry->hostname)
-							strcpy_s(dhcpEntry->hostname, MAX_HOSTNAME_STR_SIZE, dhcpData.hostname);
-					}
-
+					strcpy(dhcpEntry->hostname, dhcpData.hostname);
 					setLeaseExpiry(dhcpEntry);
 
 					if (dnsService && dhcpData.hostname[0] && cfig.replication != 2 && dhcpData.expiry > t)
@@ -6694,57 +6446,59 @@ void loadDHCP()
 						else
 							add2Cache(dhcpData.hostname, dhcpEntry->ip, dhcpData.expiry, CTYPE_LOCAL_A, CTYPE_LOCAL_PTR_NAUTH);
 					}
-					//printf("Loaded %s=%s\n", dhcpData.hostname, IP2String(ipbuff, sizeof(ipbuff), dhcpData.ip));
+					//printf("Loaded %s=%s\n", dhcpData.hostname, IP2String(ipbuff, dhcpData.ip));
 				}
 			}
 		}
 
-		fclose(ff);
+		fclose(f);
+	}
 
-		cfig.dhcpInd = 0;
+	f = fopen(leaFile, "wb");
+	fclose(f);
+	f = fopen(leaFile, "rb+");
 
-		if (0== fopen_s(&ff,leaFile, "wb"))
+	if (f)
+	{
+		dhcpMap::iterator p = dhcpCache.begin();
+
+		for (; p != dhcpCache.end(); p++)
 		{
-			dhcpMap::iterator p = dhcpCache.begin();
-
-			for (; p != dhcpCache.end(); p++)
+			if ((dhcpEntry = p->second)  && dhcpEntry->expiry > (t - 31*24*3600))
 			{
-				if ((dhcpEntry = p->second) && (dhcpEntry->expiry > t || !dhcpEntry->fixed))
-				{
-					memset(&dhcpData, 0, sizeof(data8));
-					dhcpData.bp_hlen = 16;
-					getHexValue(dhcpData.bp_chaddr, dhcpEntry->mapname, &dhcpData.bp_hlen);
-					dhcpData.ip = dhcpEntry->ip;
-					dhcpData.expiry = dhcpEntry->expiry;
-					dhcpData.local = dhcpEntry->local;
+				memset(&dhcpData, 0, sizeof(data8));
+				MYBYTE bp_hlen = 16;
+				getHexValue(dhcpData.bp_chaddr, dhcpEntry->mapname, &bp_hlen);
+				dhcpData.bp_hlen = bp_hlen;
+				dhcpData.ip = dhcpEntry->ip;
+				dhcpData.subnetFlg = dhcpEntry->subnetFlg;
+				dhcpData.expiry = dhcpEntry->expiry;
+				dhcpData.local = dhcpEntry->local;
+				strcpy(dhcpData.hostname, dhcpEntry->hostname);
+				cfig.dhcpInd += 1;
+				dhcpEntry->dhcpInd = cfig.dhcpInd;
+				dhcpData.dhcpInd = dhcpEntry->dhcpInd;
 
-					if (dhcpEntry->hostname)
-					{
-						strcpy_s(dhcpData.hostname, sizeof(dhcpData.hostname), dhcpEntry->hostname);
-					}
-
-					cfig.dhcpInd++;
-					dhcpData.dhcpInd = cfig.dhcpInd;
-					dhcpEntry->dhcpInd = cfig.dhcpInd;
-					fwrite(&dhcpData, sizeof(data8), 1, ff);
-				}
+				if (fseek(f, (dhcpData.dhcpInd - 1)*sizeof(data8), SEEK_SET) >= 0)
+					fwrite(&dhcpData, sizeof(data8), 1, f);
 			}
-			fclose(ff);
 		}
+
+		fclose(f);
 	}
 }
 
-bool getSection(const char *sectionName, char *buffer, unsigned int bufferSize, MYBYTE serial, char *fileName)
+bool getSection(const char *sectionName, char *buffer, MYBYTE serial, char *fileName)
 {
 	//printf("%s=%s\n",fileName,sectionName);
 	char section[128];
-	sprintf_s(section,sizeof(section), "[%s]", sectionName);
+	sprintf(section, "[%s]", sectionName);
 	myUpper(section);
-	FILE *f;
+	FILE *f = fopen(fileName, "rt");
 	char buff[512];
 	MYBYTE found = 0;
 
-	if (0== fopen_s(&f,fileName, "rt"))
+	if (f)
 	{
 		while (fgets(buff, 511, f))
 		{
@@ -6764,9 +6518,9 @@ bool getSection(const char *sectionName, char *buffer, unsigned int bufferSize, 
 						if (strstr(buff, "[") == buff)
 							break;
 
-						if (((*buff) >= '0' && (*buff) <= '9') || ((*buff) >= 'A' && (*buff) <= 'Z') || ((*buff) >= 'a' && (*buff) <= 'z') || (((*buff) && strchr("/\\?*", (*buff)))))
+						if ((*buff) >= '0' && (*buff) <= '9' || (*buff) >= 'A' && (*buff) <= 'Z' || (*buff) >= 'a' && (*buff) <= 'z' || ((*buff) && strchr("/\\?*", (*buff))))
 						{
-							buffer += sprintf_s(buffer,bufferSize, "%s", buff);
+							buffer += sprintf(buffer, "%s", buff);
 							buffer++;
 						}
 					}
@@ -6787,11 +6541,12 @@ FILE *openSection(const char *sectionName, MYBYTE serial)
 	char logBuff[512];
 	char tempbuff[512];
 	char section[128];
-	sprintf_s(section,sizeof(section), "[%s]", sectionName);
+	sprintf(section, "[%s]", sectionName);
 	myUpper(section);
 	FILE *f = NULL;
+	f = fopen(iniFile, "rt");
 
-	if (0== fopen_s(&f, iniFile, "rt"))
+	if (f)
 	{
 		//printf("opened %s=%d\n", tempbuff, f);
 		char buff[512];
@@ -6823,15 +6578,17 @@ FILE *openSection(const char *sectionName, MYBYTE serial)
 							myTrim(buff, buff);
 
 							if (strchr(buff, '\\') || strchr(buff, '/'))
-								strcpy_s(tempbuff, sizeof(tempbuff), buff);
+								strcpy(tempbuff, buff);
 							else
-								sprintf_s(tempbuff,sizeof(tempbuff), "%s%s", filePATH, buff);
+								sprintf(tempbuff, "%s%s", filePATH, buff);
 
-							if (0== fopen_s(&f,tempbuff, "rt"))
+							f = fopen(tempbuff, "rt");
+
+							if (f)
 								return f;
 							else
 							{
-								sprintf_s(logBuff, sizeof(logBuff), "Error: Section [%s], file %s not found", sectionName, tempbuff);
+								sprintf(logBuff, "Error: Section [%s], file %s not found", sectionName, tempbuff);
 								logMess(logBuff, 1);
 								return NULL;
 							}
@@ -6859,7 +6616,7 @@ char *readSection(char* buff, FILE *f)
 		if (*buff == '[')
 			break;
 
-		if (((*buff) >= '0' && (*buff) <= '9') || ((*buff) >= 'A' && (*buff) <= 'Z') || ((*buff) >= 'a' && (*buff) <= 'z') || ((*buff) && strchr("/\\?*", (*buff))))
+		if ((*buff) >= '0' && (*buff) <= '9' || (*buff) >= 'A' && (*buff) <= 'Z' || (*buff) >= 'a' && (*buff) <= 'z' || ((*buff) && strchr("/\\?*", (*buff))))
 			return buff;
 	}
 
@@ -6975,79 +6732,80 @@ void mySplit(char *name, char *value, char *source, char splitChar)
 	//printf("%s %s\n", name, value);
 }
 
-char *strquery(dnsRequest *req)
+char *strquery(data5 *req)
 {
-	strcpy_s(req->extbuff, sizeof(req->extbuff), req->query);
+	strcpy(req->extbuff, req->query);
 
 	switch (req->dnsType)
 	{
 		case 1:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " A");
+			strcat(req->extbuff, " A");
 			break;
 		case 2:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " NS");
+			strcat(req->extbuff, " NS");
 			break;
 		case 3:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " MD");
+			strcat(req->extbuff, " MD");
 			break;
 		case 4:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " MF");
+			strcat(req->extbuff, " MF");
 			break;
 		case 5:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " CNAME");
+			strcat(req->extbuff, " CNAME");
 			break;
 		case 6:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " SOA");
+			strcat(req->extbuff, " SOA");
 			break;
 		case 7:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " MB");
+			strcat(req->extbuff, " MB");
 			break;
 		case 8:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " MG");
+			strcat(req->extbuff, " MG");
 			break;
 		case 9:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " MR");
+			strcat(req->extbuff, " MR");
 			break;
 		case 10:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " NULL");
+			strcat(req->extbuff, " NULL");
 			break;
 		case 11:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " WKS");
+			strcat(req->extbuff, " WKS");
 			break;
 		case 12:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " PTR");
+			strcat(req->extbuff, " PTR");
 			break;
 		case 13:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " HINFO");
+			strcat(req->extbuff, " HINFO");
 			break;
 		case 14:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " MINFO");
+			strcat(req->extbuff, " MINFO");
 			break;
 		case 15:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " MX");
+			strcat(req->extbuff, " MX");
 			break;
 		case 16:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " TXT");
+			strcat(req->extbuff, " TXT");
 			break;
 		case 28:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " AAAA");
+			strcat(req->extbuff, " AAAA");
 			break;
 		case 251:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " IXFR");
+			strcat(req->extbuff, " IXFR");
 			break;
 		case 252:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " AXFR");
+			strcat(req->extbuff, " AXFR");
 			break;
 		case 253:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " MAILB");
+			strcat(req->extbuff, " MAILB");
 			break;
 		case 254:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " MAILA");
+			strcat(req->extbuff, " MAILA");
 			break;
 		case 255:
-			strcat_s(req->extbuff,sizeof(req->extbuff), " ANY");
+			strcat(req->extbuff, " ANY");
 			break;
 	}
+
 	return req->extbuff;
 }
 
@@ -7073,37 +6831,37 @@ data15 data;
 data.ip = ip;
 
 if (data.octate[0] >= 192)
-sprintf_s(tempbuff,sizeof(tempbuff), "%u.%u.%u", data.octate[2], data.octate[1], data.octate[0]);
+sprintf(tempbuff, "%u.%u.%u", data.octate[2], data.octate[1], data.octate[0]);
 else if (data.octate[0] >= 128)
-sprintf_s(tempbuff,sizeof(tempbuff), "%u.%u", data.octate[1], data.octate[0]);
+sprintf(tempbuff, "%u.%u", data.octate[1], data.octate[0]);
 else
-sprintf_s(tempbuff,sizeof(tempbuff), "%u", data.octate[0]);
+sprintf(tempbuff, "%u", data.octate[0]);
 
-strcat_s(tempbuff,sizeof(tempbuff), arpa);
+strcat(tempbuff, arpa);
 return tempbuff;
 }
 */
 
-char *IP2String(char *target, unsigned int targetsz, MYDWORD ip, MYBYTE dnsType)
+char *IP2String(char *target, MYDWORD ip, MYBYTE dnsType)
 {
 	char *dp = target;
 	(*dp) = dnsType;
 	dp++;
 	data15 inaddr;
 	inaddr.ip = ip;
-	sprintf_s(dp, (targetsz-(dp-target)), "%u.%u.%u.%u", inaddr.octate[0], inaddr.octate[1], inaddr.octate[2], inaddr.octate[3]);
+	sprintf(dp, "%u.%u.%u.%u", inaddr.octate[0], inaddr.octate[1], inaddr.octate[2], inaddr.octate[3]);
 	//MYBYTE *octate = (MYBYTE*)&ip;
-	//sprintf_s(target,sizeof(target), "%u.%u.%u.%u", octate[0], octate[1], octate[2], octate[3]);
+	//sprintf(target, "%u.%u.%u.%u", octate[0], octate[1], octate[2], octate[3]);
 	return target;
 }
 
-char *IP2String(char *target, unsigned int targetsz, MYDWORD ip)
+char *IP2String(char *target, MYDWORD ip)
 {
 	data15 inaddr;
 	inaddr.ip = ip;
-	sprintf_s(target, targetsz, "%u.%u.%u.%u", inaddr.octate[0], inaddr.octate[1], inaddr.octate[2], inaddr.octate[3]);
+	sprintf(target, "%u.%u.%u.%u", inaddr.octate[0], inaddr.octate[1], inaddr.octate[2], inaddr.octate[3]);
 	//MYBYTE *octate = (MYBYTE*)&ip;
-	//sprintf_s(target,sizeof(target), "%u.%u.%u.%u", octate[0], octate[1], octate[2], octate[3]);
+	//sprintf(target, "%u.%u.%u.%u", octate[0], octate[1], octate[2], octate[3]);
 	return target;
 }
 
@@ -7155,8 +6913,7 @@ bool isIP(char *str)
 	if (!str || !(*str))
 		return false;
 
-	MYDWORD ip;
-	inet_pton(AF_INET, str, &ip);
+	MYDWORD ip = inet_addr(str);
 
 	if (ip == INADDR_NONE || ip == INADDR_ANY)
 		return false;
@@ -7342,32 +7099,32 @@ MYBYTE fromUUE(MYBYTE *target, char *source)
 	return bp_hlen;
 }
 */
-char *hex2String(char *target, unsigned int targetsz, MYBYTE *hex, MYBYTE bytes)
+char *hex2String(char *target, MYBYTE *hex, MYBYTE bytes)
 {
 	char *dp = target;
 
 	if (bytes)
-		dp += sprintf_s(target, targetsz - (dp-target), "%02x", *hex);
+		dp += sprintf(target, "%02x", *hex);
 	else
 		*target = 0;
 
 	for (MYBYTE i = 1; i < bytes; i++)
-			dp += sprintf_s(dp, targetsz - (dp - target), ":%02x", *(hex + i));
+			dp += sprintf(dp, ":%02x", *(hex + i));
 
 	return target;
 }
 
-char *genHostName(char *target, unsigned int targetsz, MYBYTE *hex, MYBYTE bytes)
+char *genHostName(char *target, MYBYTE *hex, MYBYTE bytes)
 {
 	char *dp = target;
 
 	if (bytes)
-		dp += sprintf_s(target, targetsz - (dp - target), "Host%02x", *hex);
+		dp += sprintf(target, "Host%02x", *hex);
 	else
 		*target = 0;
 
 	for (MYBYTE i = 1; i < bytes; i++)
-			dp += sprintf_s(dp, targetsz - (dp - target), "%02x", *(hex + i));
+			dp += sprintf(dp, "%02x", *(hex + i));
 
 	return target;
 }
@@ -7382,18 +7139,18 @@ char *IP62String(char *target, MYBYTE *source)
 	for (markbyte = 4; markbyte > 0 && !dw[markbyte - 1]; markbyte--);
 
 	for (MYBYTE i = 0; i < markbyte; i++)
-		dp += sprintf_s(dp,sizeof(dp), "%x:", ntohs(dw[i]));
+		dp += sprintf(dp, "%x:", ntohs(dw[i]));
 
 	for (markbyte = 4; markbyte < 8 && !dw[markbyte]; markbyte++);
 
 	for (MYBYTE i = markbyte; i < 8; i++)
-		dp += sprintf_s(dp,sizeof(dp), ":%x", htons(dw[i]));
+		dp += sprintf(dp, ":%x", htons(dw[i]));
 
 	return target;
 }
 */
 
-char *IP62String(char *target, unsigned int targetsz, MYBYTE *source)
+char *IP62String(char *target, MYBYTE *source)
 {
 	char *dp = target;
 	bool zerostarted = false;
@@ -7408,14 +7165,14 @@ char *IP62String(char *target, unsigned int targetsz, MYBYTE *source)
 
 			if (zerostarted && zeroended)
 			{
-				dp += sprintf_s(dp, targetsz - (dp - target), "::");
+				dp += sprintf(dp, "::");
 				zerostarted = false;
 			}
 			else if (dp != target)
-				dp += sprintf_s(dp,sizeof(dp), ":");
+				dp += sprintf(dp, ":");
 
-			dp += sprintf_s(dp, (targetsz - (dp - target)), "%x", source[0]);
-			dp += sprintf_s(dp, (targetsz - (dp - target)), "%02x", source[1]);
+			dp += sprintf(dp, "%x", source[0]);
+			dp += sprintf(dp, "%02x", source[1]);
 		}
 		else if (source[1])
 		{
@@ -7424,13 +7181,13 @@ char *IP62String(char *target, unsigned int targetsz, MYBYTE *source)
 
 			if (zerostarted && zeroended)
 			{
-				dp += sprintf_s(dp, (targetsz - (dp - target)), "::");
+				dp += sprintf(dp, "::");
 				zerostarted = false;
 			}
 			else if (dp != target)
-				dp += sprintf_s(dp, (targetsz - (dp - target)), ":");
+				dp += sprintf(dp, ":");
 
-			dp += sprintf_s(dp, (targetsz - (dp - target)), "%0x", source[1]);
+			dp += sprintf(dp, "%0x", source[1]);
 		}
 		else if (!zeroended)
 			zerostarted = true;
@@ -7515,7 +7272,7 @@ char *getHexValue(MYBYTE *target, char *source, MYBYTE *size)
 char *myUpper(char *string)
 {
 	char diff = 'a' - 'A';
-	MYWORD len = (unsigned short)strlen(string);
+	MYWORD len = strlen(string);
 	for (int i = 0; i < len; i++)
 		if (string[i] >= 'a' && string[i] <= 'z')
 			string[i] -= diff;
@@ -7525,7 +7282,7 @@ char *myUpper(char *string)
 char *myLower(char *string)
 {
 	char diff = 'a' - 'A';
-	MYWORD len = (unsigned short)strlen(string);
+	MYWORD len = strlen(string);
 	for (int i = 0; i < len; i++)
 		if (string[i] >= 'A' && string[i] <= 'Z')
 			string[i] += diff;
@@ -7587,12 +7344,12 @@ bool isLocal(MYDWORD ip)
 		return false;
 }
 
-char *setMapName(char *tempbuff, unsigned int targetsz, char *mapname, MYBYTE dnsType)
+char *setMapName(char *tempbuff, char *mapname, MYBYTE dnsType)
 {
 	char *dp = tempbuff;
 	(*dp) = dnsType;
 	dp++;
-	strcpy_s(dp, targetsz-(dp-tempbuff), mapname);
+	strcpy(dp, mapname);
 	myLower(dp);
 	return tempbuff;
 }
@@ -7610,14 +7367,14 @@ MYBYTE makeLocal(char *mapname)
 		//(*dp) = 0;
 		return QTYPE_P_ZONE;
 	}
-	else if (char *dp = strrchr(mapname, '.'))
+	else if (char *dp = strchr(mapname, '.'))
 	{
 		if (!strcasecmp(dp + 1, cfig.zone))
 		{
 			*dp = 0;
 			return QTYPE_A_LOCAL;
 		}
-		else if ((dp = strstr(mapname, arpa)))
+		else if (dp = strstr(mapname, arpa))
 		{
 			if (strstr(mapname, cfig.authority))
 			{
@@ -7651,9 +7408,9 @@ void listCache()
 		cache = p->second;
 
 		if (cache->hostname)
-			sprintf_s(logBuff, sizeof(logBuff), "%s=%s", cache->mapname, cache->hostname);
+			sprintf(logBuff, "%s=%s", cache->mapname, cache->hostname);
 		else
-			sprintf_s(logBuff, sizeof(logBuff), "%s=%s", cache->mapname, IP2String(ipbuff, sizeof(ipbuff), cache->ip));
+			sprintf(logBuff, "%s=%s", cache->mapname, IP2String(ipbuff, cache->ip));
 
 		logDNSMess(logBuff, 1);
 		p++;
@@ -7669,7 +7426,7 @@ void listDhcpCache()
 	while (p != dhcpCache.end())
 	{
 		cache = p->second;
-		sprintf_s(logBuff, sizeof(logBuff), cache->mapname);
+		sprintf(logBuff, cache->mapname);
 		logDHCPMess(logBuff, 1);
 		p++;
 	}
@@ -7681,7 +7438,7 @@ void checkSize()
 	//listCache();
 	//listDhcpCache();
 	//printf("Start %u=%u\n",dnsCache[currentInd].size(),dnsAge[currentInd].size());
-	//sprintf_s(logBuff, sizeof(logBuff), "Start Cache size %u=%u",dnsCache[currentInd].size(),dnsAge[currentInd].size());
+	//sprintf(logBuff, "Start Cache size %u=%u",dnsCache[currentInd].size(),dnsAge[currentInd].size());
 	//debug(logBuff);
 
 	data7 *cache = NULL;
@@ -7707,7 +7464,7 @@ void checkSize()
 		if (cache && cache->expiry > t)
 		{
 			dnsAge[currentInd].insert(pair<time_t, data7*>(cache->expiry, cache));
-			//sprintf_s(logBuff, sizeof(logBuff), "Entry %s being advanced", cache->name);
+			//sprintf(logBuff, "Entry %s being advanced", cache->name);
 			//logMess(logBuff, 1);
 		}
 		else if (cache)
@@ -7740,19 +7497,19 @@ void checkSize()
 			if (cfig.replication != 2)
 			{
 				if (cache->cType == CTYPE_LOCAL_A)
-					cfig.serial1 = (unsigned int)t;
+					cfig.serial1 = t;
 				else if (cache->cType == CTYPE_LOCAL_PTR_AUTH)
-					cfig.serial2 = (unsigned int)t;
+					cfig.serial2 = t;
 			}
 
-			//sprintf_s(logBuff, sizeof(logBuff), "Data Type=%u Cache Size=%u, Age Size=%u, Entry %s being deleted", cache->cType, dnsCache[currentInd].size(), dnsAge[currentInd].size(), cache->name);
+			//sprintf(logBuff, "Data Type=%u Cache Size=%u, Age Size=%u, Entry %s being deleted", cache->cType, dnsCache[currentInd].size(), dnsAge[currentInd].size(), cache->name);
 			//logMess(logBuff, 1);
 			delDnsEntry(cache);
 			//maxDelete--;
 		}
 	}
 
-	//sprintf_s(logBuff, sizeof(logBuff), "End Cache size %u=%u",dnsCache[currentInd].size(),dnsAge[currentInd].size());
+	//sprintf(logBuff, "End Cache size %u=%u",dnsCache[currentInd].size(),dnsAge[currentInd].size());
 	//debug(logBuff);
 
 /*
@@ -7795,7 +7552,6 @@ void checkSize()
 
 void delDnsEntry(data7* cache)
 {
-	//char logBuff[512];
 	hostMap::iterator r = dnsCache[currentInd].find(cache->mapname);
 
 	for (; r != dnsCache[currentInd].end(); r++)
@@ -7804,7 +7560,7 @@ void delDnsEntry(data7* cache)
 			break;
 		else if (r->second == cache)
 		{
-			//sprintf_s(logBuff, sizeof(logBuff), "cType=%u dnsType=%u Size=%u, Entry %s being deleted", cache->cType, cache->dnsType, dnsCache[currentInd].size(), cache->name);
+			//sprintf(logBuff, "cType=%u dnsType=%u Size=%u, Entry %s being deleted", cache->cType, cache->dnsType, dnsCache[currentInd].size(), cache->name);
 			//debug(logBuff);
 			dnsCache[currentInd].erase(r);
 			free(cache);
@@ -7813,10 +7569,10 @@ void delDnsEntry(data7* cache)
 	}
 }
 
-void calcRangeLimits(MYDWORD ip, MYDWORD mask, MYDWORD *rangeStart, MYDWORD *rangeEnd)
+void calcRangeLimits(MYDWORD ip, MYDWORD mask, MYDWORD *minRange, MYDWORD *maxRange)
 {
-	*rangeStart = htonl(ip & mask) + 1;
-	*rangeEnd = htonl(ip | (~mask)) - 1;
+	*minRange = htonl(ip & mask) + 1;
+	*maxRange = htonl(ip | (~mask)) - 1;
 }
 
 bool checkMask(MYDWORD mask)
@@ -7833,12 +7589,12 @@ bool checkMask(MYDWORD mask)
 	return true;
 }
 
-MYDWORD calcMask(MYDWORD rangeStart, MYDWORD rangeEnd)
+MYDWORD calcMask(MYDWORD minRange, MYDWORD maxRange)
 {
 	data15 ip1, ip2, mask;
 
-	ip1.ip = htonl(rangeStart);
-	ip2.ip = htonl(rangeEnd);
+	ip1.ip = htonl(minRange);
+	ip2.ip = htonl(maxRange);
 
 	for (MYBYTE i = 0; i < 4; i++)
 	{
@@ -7869,13 +7625,13 @@ MYDWORD calcMask(MYDWORD rangeStart, MYDWORD rangeEnd)
 	return mask.ip;
 }
 
-char *findHost(char *tempbuff, unsigned int destsz, MYDWORD ip)
+char *findHost(char *tempbuff, MYDWORD ip)
 {
-	IP2String(tempbuff, destsz, htonl(ip));
+	IP2String(tempbuff, htonl(ip));
 	data7 *cache = findEntry(tempbuff, DNS_TYPE_PTR);
 
 	if (cache)
-		strcpy_s(tempbuff, sizeof(tempbuff), cache->hostname);
+		strcpy(tempbuff, cache->hostname);
 	else
 		tempbuff[0] = 0;
 
@@ -7885,7 +7641,7 @@ char *findHost(char *tempbuff, unsigned int destsz, MYDWORD ip)
 data7 *findEntry(char *key, MYBYTE dnsType, MYBYTE cType)
 {
 	char tempbuff[512];
-	hostMap::iterator it = dnsCache[currentInd].find(setMapName(tempbuff, sizeof(tempbuff), key, dnsType));
+	hostMap::iterator it = dnsCache[currentInd].find(setMapName(tempbuff, key, dnsType));
 
 	while (it != dnsCache[currentInd].end() && it->second && !strcasecmp(it->second->mapname, tempbuff))
 	{
@@ -7902,7 +7658,7 @@ data7 *findEntry(char *key, MYBYTE dnsType)
 {
 	char tempbuff[512];
 	//printf("finding %u=%s\n",ind,key);
-	hostMap::iterator it = dnsCache[currentInd].find(setMapName(tempbuff, sizeof(tempbuff), key, dnsType));
+	hostMap::iterator it = dnsCache[currentInd].find(setMapName(tempbuff, key, dnsType));
 
 	if (it != dnsCache[currentInd].end() && it->second)
 		return it->second;
@@ -7944,11 +7700,10 @@ void addEntry(data7 *entry)
 
 char *cloneString(char *string)
 {
-	unsigned int destsz = sizeof(char) * (strlen(string) + 1);
-	char *s = (char*)calloc(1, destsz);
+	char *s = (char*)calloc(1, strlen(string) + 1);
 
 	if (s)
-		strcpy_s(s, destsz, string);
+		strcpy(s, string);
 
 	return s;
 }
@@ -7960,10 +7715,10 @@ MYDWORD getSerial(char *zone)
 	char logBuff[512];
 	char ipbuff[32];
 	MYDWORD serial1 = 0;
-	dnsRequest req;
-	memset(&req, 0, sizeof(dnsRequest));
+	data5 req;
+	memset(&req, 0, sizeof(data5));
 	req.remote.sin_family = AF_INET;
-	req.remote.sin_port = htons(dnsPort);
+	req.remote.sin_port = htons(IPPORT_DNS);
 	timeval tv1;
 	fd_set readfds1;
 
@@ -7973,28 +7728,21 @@ MYDWORD getSerial(char *zone)
 		req.remote.sin_addr.s_addr = cfig.zoneServers[1];
 
 	req.sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (req.sock == INVALID_SOCKET)
-	{
-		closesocket(req.sock);
-		sprintf_s(logBuff, sizeof(logBuff), "Failed to send create socket to Primary Server %s", IP2String(ipbuff, sizeof(ipbuff), req.remote.sin_addr.s_addr));
-		logDNSMess(logBuff, 1);
-		return 0;
-	}
 	req.dnsp = (dnsPacket*)req.raw;
 	req.dnsp->header.qdcount = htons(1);
 	req.dnsp->header.rd = false;
 	req.dnsp->header.xid = (t % USHRT_MAX);
 	req.dp = &req.dnsp->data;
-	req.dp += putQueryString(req.dp, zone, sizeof(req.raw) - (req.dp - req.raw));
-	req.dp += putUnsignedShort(req.dp, DNS_TYPE_SOA, sizeof(req.raw) - (req.dp - req.raw));
-	req.dp += putUnsignedShort(req.dp, DNS_CLASS_IN, sizeof(req.raw) - (req.dp - req.raw));
-	req.bytes = (int)(req.dp - req.raw, sizeof(req.raw) - (req.dp - req.raw));
-	//putUnsignedShort(req.raw, req.bytes - 2);
+	req.dp += pQu(req.dp, zone);
+	req.dp += pUShort(req.dp, DNS_TYPE_SOA);
+	req.dp += pUShort(req.dp, DNS_CLASS_IN);
+	req.bytes = req.dp - req.raw;
+	//pUShort(req.raw, req.bytes - 2);
 
 	if ((req.bytes = sendto(req.sock, req.raw, req.bytes, 0, (sockaddr*)&req.remote, sizeof(req.remote))) <= 0)
 	{
 		closesocket(req.sock);
-		sprintf_s(logBuff, sizeof(logBuff), "Failed to send request to Primary Server %s", IP2String(ipbuff, sizeof(ipbuff), req.remote.sin_addr.s_addr));
+		sprintf(logBuff, "Failed to send request to Primary Server %s", IP2String(ipbuff, req.remote.sin_addr.s_addr));
 		logDNSMess(logBuff, 1);
 		return 0;
 	}
@@ -8003,56 +7751,55 @@ MYDWORD getSerial(char *zone)
 	tv1.tv_sec = 3;
 	tv1.tv_usec = 0;
 	FD_SET(req.sock, &readfds1);
-	if (0 < select(USHRT_MAX, &readfds1, NULL, NULL, &tv1))
+	select(USHRT_MAX, &readfds1, NULL, NULL, &tv1);
+
+	if (FD_ISSET(req.sock, &readfds1))
 	{
-		if (FD_ISSET(req.sock, &readfds1))
+		req.sockLen = sizeof(req.remote);
+		req.bytes = recvfrom(req.sock, req.raw, sizeof(req.raw), 0, (sockaddr*)&req.remote, &req.sockLen);
+
+		if (req.bytes > 0 && !req.dnsp->header.rcode && req.dnsp->header.qr && ntohs(req.dnsp->header.ancount))
 		{
-			req.sockLen = sizeof(req.remote);
-			req.bytes = recvfrom(req.sock, req.raw, sizeof(req.raw), 0, (sockaddr*)&req.remote, &req.sockLen);
+			req.dp = &req.dnsp->data;
 
-			if (req.bytes > 0 && !req.dnsp->header.rcode && req.dnsp->header.qr && ntohs(req.dnsp->header.ancount))
+			for (int j = 1; j <= ntohs(req.dnsp->header.qdcount); j++)
 			{
-				req.dp = &req.dnsp->data;
+				req.dp += fQu(tempbuff, req.dnsp, req.dp);
+				req.dp += 4;
+			}
 
-				for (int j = 1; j <= ntohs(req.dnsp->header.qdcount); j++)
+			for (int i = 1; i <= ntohs(req.dnsp->header.ancount); i++)
+			{
+				req.dp += fQu(tempbuff, req.dnsp, req.dp);
+				req.dnsType = fUShort(req.dp);
+				req.dp += 2; //type
+				req.qclass = fUShort(req.dp);
+				req.dp += 2; //class
+				fULong(req.dp);
+				req.dp += 4; //ttl
+				req.dp += 2; //datalength
+
+				if (req.dnsType == DNS_TYPE_SOA)
 				{
 					req.dp += fQu(tempbuff, req.dnsp, req.dp);
-					req.dp += 4;
-				}
-
-				for (int i = 1; i <= ntohs(req.dnsp->header.ancount); i++)
-				{
 					req.dp += fQu(tempbuff, req.dnsp, req.dp);
-					req.dnsType = (unsigned char)fUShort(req.dp);
-					req.dp += 2; //type
-					req.qclass = fUShort(req.dp);
-					req.dp += 2; //class
-					fULong(req.dp);
-					req.dp += 4; //ttl
-					req.dp += 2; //datalength
-
-					if (req.dnsType == DNS_TYPE_SOA)
-					{
-						req.dp += fQu(tempbuff, req.dnsp, req.dp);
-						req.dp += fQu(tempbuff, req.dnsp, req.dp);
-						serial1 = fULong(req.dp);
-					}
+					serial1 = fULong(req.dp);
 				}
-				closesocket(req.sock);
-				return serial1;
 			}
-			else
-			{
-				closesocket(req.sock);
-				//sprintf_s(logBuff, sizeof(logBuff), "Zone %s not found on Primary Server %s", zone, IP2String(ipbuff, sizeof(ipbuff), req.remote.sin_addr.s_addr));
-				//logDNSMess(logBuff, 1);
-				return 0;
-			}
+			closesocket(req.sock);
+			return serial1;
+		}
+		else
+		{
+			closesocket(req.sock);
+			//sprintf(logBuff, "Zone %s not found on Primary Server %s", zone, IP2String(ipbuff, req.remote.sin_addr.s_addr));
+			//logDNSMess(logBuff, 1);
+			return 0;
 		}
 	}
 
 	closesocket(req.sock);
-	sprintf_s(logBuff, sizeof(logBuff), "Failed to contact the Primary Server %s", IP2String(ipbuff, sizeof(ipbuff), req.remote.sin_addr.s_addr));
+	sprintf(logBuff, "Failed to contact the Primary Server %s", IP2String(ipbuff, req.remote.sin_addr.s_addr));
 	logDNSMess(logBuff, 1);
 	return 0;
 }
@@ -8060,23 +7807,16 @@ MYDWORD getSerial(char *zone)
 void sendServerName()
 {
 	errno = 0;
-	dnsRequest req;
-	memset(&req, 0, sizeof(dnsRequest));
+	data5 req;
+	memset(&req, 0, sizeof(data5));
 	req.remote.sin_family = AF_INET;
-	req.remote.sin_port = htons(dnsPort);
+	req.remote.sin_port = htons(IPPORT_DNS);
 	req.remote.sin_addr.s_addr = cfig.zoneServers[0];
 
 	timeval tv1;
 	fd_set readfds1;
 
 	req.sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (req.sock == INVALID_SOCKET)
-	{
-		char logBuff[512];
-		sprintf_s(logBuff, sizeof(logBuff), "Failed to Create Socket in sendServerName");
-		logDNSMess(logBuff, 1);
-		return;
-	}
 	req.dnsp = (dnsPacket*)req.raw;
 	req.dnsp->header.opcode = OPCODE_DYNAMIC_UPDATE;
 	req.dnsp->header.qr = true;
@@ -8084,17 +7824,17 @@ void sendServerName()
 	req.dnsp->header.prcount = htons(1);
 	req.dnsp->header.xid = (t % USHRT_MAX);
 	req.dp = &req.dnsp->data;
-	req.dp += putQueryString(req.dp, cfig.zone, sizeof(req.raw) - (req.dp - req.raw));
-	req.dp += putUnsignedShort(req.dp, DNS_TYPE_SOA, sizeof(req.raw) - (req.dp - req.raw));
-	req.dp += putUnsignedShort(req.dp, DNS_CLASS_IN, sizeof(req.raw) - (req.dp - req.raw));
-	req.dp += putQueryString(req.dp, cfig.servername_fqn, sizeof(req.raw) - (req.dp - req.raw));
-	req.dp += putUnsignedShort(req.dp, DNS_TYPE_A, sizeof(req.raw) - (req.dp - req.raw));
-	req.dp += putUnsignedShort(req.dp, DNS_CLASS_IN, sizeof(req.raw) - (req.dp - req.raw));
-	req.dp += putUnsignedLong(req.dp, 0, sizeof(req.raw) - (req.dp - req.raw));
-	req.dp += putUnsignedShort(req.dp, 4, sizeof(req.raw) - (req.dp - req.raw));
-	req.dp += putIP(req.dp, cfig.zoneServers[1], sizeof(req.raw) - (req.dp - req.raw));
-	req.bytes = (int)(req.dp - req.raw);
-	//putUnsignedShort(req.raw, req.bytes - 2);
+	req.dp += pQu(req.dp, cfig.zone);
+	req.dp += pUShort(req.dp, DNS_TYPE_SOA);
+	req.dp += pUShort(req.dp, DNS_CLASS_IN);
+	req.dp += pQu(req.dp, cfig.servername_fqn);
+	req.dp += pUShort(req.dp, DNS_TYPE_A);
+	req.dp += pUShort(req.dp, DNS_CLASS_IN);
+	req.dp += pULong(req.dp, 0);
+	req.dp += pUShort(req.dp, 4);
+	req.dp += pIP(req.dp, cfig.zoneServers[1]);
+	req.bytes = req.dp - req.raw;
+	//pUShort(req.raw, req.bytes - 2);
 
 	if ((req.bytes = sendto(req.sock, req.raw, req.bytes, 0, (sockaddr*)&req.remote, sizeof(req.remote))) <= 0)
 	{
@@ -8105,13 +7845,12 @@ void sendServerName()
 	tv1.tv_sec = 5;
 	tv1.tv_usec = 0;
 	FD_SET(req.sock, &readfds1);
-	if (0 < select(USHRT_MAX, &readfds1, NULL, NULL, &tv1))
+	select(USHRT_MAX, &readfds1, NULL, NULL, &tv1);
+
+	if (FD_ISSET(req.sock, &readfds1))
 	{
-		if (FD_ISSET(req.sock, &readfds1))
-		{
-			req.sockLen = sizeof(req.remote);
-			req.bytes = recvfrom(req.sock, req.raw, sizeof(req.raw), 0, (sockaddr*)&req.remote, &req.sockLen);
-		}
+		req.sockLen = sizeof(req.remote);
+		req.bytes = recvfrom(req.sock, req.raw, sizeof(req.raw), 0, (sockaddr*)&req.remote, &req.sockLen);
 	}
 
 	closesocket(req.sock);
@@ -8127,13 +7866,13 @@ MYWORD recvTcpDnsMess(char *target, SOCKET sock, MYWORD targetSize)
 	tv1.tv_sec = 5;
 	tv1.tv_usec = 0;
 
-	if (0 < select((int)(sock + 1), &readfds1, NULL, NULL, &tv1))
+	if (select(sock + 1, &readfds1, NULL, NULL, &tv1))
 	{
 		errno = 0;
 		short chunk = recv(sock, target, 2, 0);
-		if (chunk==SOCKET_ERROR) errno = WSAGetLastError();
+		errno = WSAGetLastError();
 
-		if (chunk == 2)
+		if (!errno && chunk == 2)
 		{
 			char *ptr;
 			MYWORD rcd = chunk;
@@ -8149,17 +7888,15 @@ MYWORD recvTcpDnsMess(char *target, SOCKET sock, MYWORD targetSize)
 				tv1.tv_sec = 5;
 				tv1.tv_usec = 0;
 
-				if (0 < select((int)(sock + 1), &readfds1, NULL, NULL, &tv1))
+				if (select(sock + 1, &readfds1, NULL, NULL, &tv1))
 				{
 					errno = 0;
 					ptr = target + rcd;
 					chunk = recv(sock, ptr, bytes - rcd, 0);
+					errno = WSAGetLastError();
 
-					if (chunk == SOCKET_ERROR || chunk == 0)
-					{
-						errno = WSAGetLastError();
+					if (chunk <= 0 || errno)
 						return 0;
-					}
 					else
 						rcd += chunk;
 				}
@@ -8177,10 +7914,10 @@ MYWORD recvTcpDnsMess(char *target, SOCKET sock, MYWORD targetSize)
 void emptyCache(MYBYTE ind)
 {
 	//debug("emptyCache");
-	//char logBuff[512];
 	data7 *cache = NULL;
 
-	//sprintf_s(logBuff, sizeof(logBuff), "Emptying cache[%d] Start %d=%d",ind, dnsCache[ind].size(), dnsAge[ind].size());
+	//char logBuff[512];
+	//sprintf(logBuff, "Emptying cache[%d] Start %d=%d",ind, dnsCache[ind].size(), dnsAge[ind].size());
 	//logMess(logBuff, 2);
 
 	cfig.mxCount[ind] = 0;
@@ -8208,13 +7945,13 @@ void __cdecl checkZone(void *lpParam)
 
 	while (kRunning)
 	{
-//		//if (!dhcpService && !findEntry(IP2String(ipbuff, sizeof(ipbuff), htonl(cfig.zoneServers[1])), DNS_TYPE_PTR))
+//		//if (!dhcpService && !findEntry(IP2String(ipbuff, htonl(cfig.zoneServers[1])), DNS_TYPE_PTR))
 //		if (!dhcpService)
 //			sendServerName();
 
 		MYBYTE updateInd = !magin->currentInd;
 		emptyCache(updateInd);
-		sprintf_s(logBuff, sizeof(logBuff), "Checking Serial from Primary Server %s", IP2String(ipbuff, sizeof(ipbuff), cfig.zoneServers[0]));
+		sprintf(logBuff, "Checking Serial from Primary Server %s", IP2String(ipbuff, cfig.zoneServers[0]));
 		logDNSMess(logBuff, 2);
 
 		MYDWORD serial1 = getSerial(cfig.zone);
@@ -8227,7 +7964,7 @@ void __cdecl checkZone(void *lpParam)
 		{
 			//cfig.dnsRepl = 0;
 			//cfig.dhcpRepl = 0;
-			sprintf_s(logBuff, sizeof(logBuff), "Failed to get SOA from Primary Server, waiting %i seconds to retry", cfig.retry);
+			sprintf(logBuff, "Failed to get SOA from Primary Server, waiting %i seconds to retry", cfig.retry);
 			logDNSMess(logBuff, 1);
 			Sleep(1000*(cfig.retry));
 			continue;
@@ -8244,7 +7981,7 @@ void __cdecl checkZone(void *lpParam)
 			else
 				cfig.expireTime = t + cfig.expire;
 
-			sprintf_s(logBuff, sizeof(logBuff), "Zone Refresh not required");
+			sprintf(logBuff, "Zone Refresh not required");
 			logDNSMess(logBuff, 2);
 			Sleep(1000*(cfig.refresh));
 		}
@@ -8260,7 +7997,7 @@ void __cdecl checkZone(void *lpParam)
 
 			if (!serial1 || !serial2)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Waiting %u seconds to retry", cfig.retry);
+				sprintf(logBuff, "Waiting %u seconds to retry", cfig.retry);
 				logDNSMess(logBuff, 1);
 				Sleep(1000*(cfig.retry));
 			}
@@ -8292,72 +8029,67 @@ void __cdecl checkZone(void *lpParam)
 
 FILE *pullZone(SOCKET sock)
 {
-	char target[4096];
-	timeval tv1;
-	fd_set readfds1;
-	FILE *f;
+    char target[4096];
+    timeval tv1;
+    fd_set readfds1;
+    FILE *f = fopen(tempFile, "wb");
 
-	if (0== fopen_s(&f,tempFile, "wb"))
-	{
-		fclose(f);
-		if (0!= fopen_s(&f,tempFile, "ab"))
-		{
-			closesocket(sock);
-			return NULL;
-		}
-	}
-	else
-	{
+    if (f)
+    {
+        fclose(f);
+        f = fopen(tempFile, "ab");
+    }
+    else
+    {
 		closesocket(sock);
-		return NULL;
+        return NULL;
 	}
 
-	while (true)
-	{
-		FD_ZERO(&readfds1);
-		FD_SET(sock, &readfds1);
-		tv1.tv_sec = 10;
-		tv1.tv_usec = 0;
+    while (true)
+    {
+        FD_ZERO(&readfds1);
+        FD_SET(sock, &readfds1);
+        tv1.tv_sec = 10;
+        tv1.tv_usec = 0;
 
-		if (0 < select((int)(sock + 1), &readfds1, NULL, NULL, &tv1))
-		{
-			errno = 0;
-			short bytes = recv(sock, target, sizeof(target), 0);
+        if (select((sock + 1), &readfds1, NULL, NULL, &tv1) > 0)
+        {
+            errno = 0;
+            short bytes = recv(sock, target, sizeof(target), 0);
+            errno = WSAGetLastError();
 
-			if (bytes == SOCKET_ERROR)
+            if (errno)
 			{
-				errno = WSAGetLastError();
 				closesocket(sock);
-				fclose(f);
+                fclose(f);
 				return NULL;
 			}
 
-			//debug(bytes);
+            //debug(bytes);
 
-			if (bytes == 0)
-				break;
+            if (bytes <= 0)
+                break;
 
-			if (bytes != (short)fwrite(target, 1, bytes, f))
+            if (bytes != (short)fwrite(target, 1, bytes, f))
 			{
 				closesocket(sock);
-				fclose(f);
+                fclose(f);
 				return NULL;
 			}
-		}
-		else
+        }
+        else
 		{
 			break;
 			//closesocket(sock);
 			//fclose(f);
 			//return NULL;
 		}
-	}
+    }
 
 	closesocket(sock);
 	fclose(f);
-	if (0== fopen_s(&f,tempFile, "rb"))
-		return f;
-	return 0;
+    f = fopen(tempFile, "rb");
+    return f;
 }
 
 MYDWORD getZone(MYBYTE ind, char *zone)
@@ -8380,7 +8112,7 @@ MYDWORD getZone(MYBYTE ind, char *zone)
 	char *data;
 	char *dp;
 	MYDWORD ip;
-	dnsRequest req;
+	data5 req;
 	data7 *cache = NULL;
 
 	memset(&lump, 0, sizeof(data71));
@@ -8391,8 +8123,7 @@ MYDWORD getZone(MYBYTE ind, char *zone)
 
 	if (cache)
 	{
-		inet_pton(AF_INET, localhost_ip, &(cache->ip));
-		cache->ip = ntohl(cache->ip);
+		cache->ip = ntohl(inet_addr(localhost_ip));
 		cache->expiry = INT_MAX;
 		dnsCache[ind].insert(pair<string, data7*>(cache->mapname, cache));
 	}
@@ -8410,12 +8141,12 @@ MYDWORD getZone(MYBYTE ind, char *zone)
 		dnsCache[ind].insert(pair<string, data7*>(cache->mapname, cache));
 	}
 
-	memset(&req, 0, sizeof(dnsRequest));
+	memset(&req, 0, sizeof(data5));
 	req.sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
 	if (req.sock == INVALID_SOCKET)
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "Failed to Create Socket, Zone Transfer Failed");
+		sprintf(logBuff, "Failed to Create Socket, Zone Transfer Failed");
 		logDNSMess(logBuff, 1);
 		return 0;
 	}
@@ -8429,13 +8160,13 @@ MYDWORD getZone(MYBYTE ind, char *zone)
 	if (nRet == SOCKET_ERROR)
 	{
 		closesocket(req.sock);
-		sprintf_s(logBuff, sizeof(logBuff), "Error: Interface %s not ready, Zone Transfer Failed", IP2String(ipbuff, sizeof(ipbuff), req.addr.sin_addr.s_addr));
+		sprintf(logBuff, "Error: Interface %s not ready, Zone Transfer Failed", IP2String(ipbuff, req.addr.sin_addr.s_addr));
 		logDNSMess(logBuff, 1);
 		return 0;
 	}
 
 	req.remote.sin_family = AF_INET;
-	req.remote.sin_port = htons(dnsPort);
+	req.remote.sin_port = htons(IPPORT_DNS);
 	req.remote.sin_addr.s_addr = cfig.zoneServers[0];
 
 	req.sockLen = sizeof(req.remote);
@@ -8448,16 +8179,16 @@ MYDWORD getZone(MYBYTE ind, char *zone)
 		req.dnsp->header.qdcount = htons(1);
 		req.dnsp->header.xid = (t % USHRT_MAX);
 		req.dp = &req.dnsp->data;
-		req.dp += putQueryString(req.dp, zone, sizeof(req.raw) - (req.dp - req.raw));
-		req.dp += putUnsignedShort(req.dp, DNS_TYPE_AXFR, sizeof(req.raw) - (req.dp - req.raw));
-		req.dp += putUnsignedShort(req.dp, DNS_CLASS_IN, sizeof(req.raw) - (req.dp - req.raw));
-		req.bytes = (int)(req.dp - req.raw);
-		putUnsignedShort(req.raw, req.bytes - 2);
+		req.dp += pQu(req.dp, zone);
+		req.dp += pUShort(req.dp, DNS_TYPE_AXFR);
+		req.dp += pUShort(req.dp, DNS_CLASS_IN);
+		req.bytes = req.dp - req.raw;
+		pUShort(req.raw, req.bytes - 2);
 
 		if (send(req.sock, req.raw, req.bytes, 0) < req.bytes)
 		{
 			closesocket(req.sock);
-			sprintf_s(logBuff, sizeof(logBuff), "Failed to contact Primary Server %s, Zone Transfer Failed", IP2String(ipbuff, sizeof(ipbuff), req.remote.sin_addr.s_addr));
+			sprintf(logBuff, "Failed to contact Primary Server %s, Zone Transfer Failed", IP2String(ipbuff, req.remote.sin_addr.s_addr));
 			logDNSMess(logBuff, 1);
 			return 0;
 		}
@@ -8469,14 +8200,14 @@ MYDWORD getZone(MYBYTE ind, char *zone)
 
 		while (kRunning && !serial2)
 		{
-			req.bytes = (int)fread(req.raw, 1, 2, f);
+			req.bytes = fread(req.raw, 1, 2, f);
 
 			if (req.bytes != 2)
 				break;
 
 			MYWORD pktSize = fUShort(req.raw);
 
-			req.bytes = (int)fread(req.raw, 1, pktSize, f);
+			req.bytes = fread(req.raw, 1, pktSize, f);
 
 			if ((MYWORD)req.bytes != pktSize)
 			{
@@ -8490,7 +8221,7 @@ MYDWORD getZone(MYBYTE ind, char *zone)
 
 			if (req.dnsp->header.rcode)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Primary Server %s, zone %s refused", IP2String(ipbuff, sizeof(ipbuff), req.remote.sin_addr.s_addr), zone);
+				sprintf(logBuff, "Primary Server %s, zone %s refused", IP2String(ipbuff, req.remote.sin_addr.s_addr), zone);
 				logDNSMess(logBuff, 1);
 				fclose(f);
 				return 0;
@@ -8519,10 +8250,10 @@ MYDWORD getZone(MYBYTE ind, char *zone)
 					return 0;
 				}
 
-				//sprintf_s(logBuff, sizeof(logBuff), "%u=%s\n", pktSize, req.mapname);
+				//sprintf(logBuff, "%u=%s\n", pktSize, req.mapname);
 				//logMess(logBuff, 2);
 
-				req.dnsType = (unsigned char)fUShort(req.dp);
+				req.dnsType = fUShort(req.dp);
 				req.dp += 2; //type
 				req.qclass = fUShort(req.dp);
 				req.dp += 2; //class
@@ -8541,7 +8272,7 @@ MYDWORD getZone(MYBYTE ind, char *zone)
 						data += fQu(tempbuff, req.dnsp, data);
 
 						if (!cfig.nsP[0])
-							strcpy_s(cfig.nsP, sizeof(cfig.nsP), req.cname);
+							strcpy(cfig.nsP, req.cname);
 
 						if (!serial1)
 						{
@@ -8615,7 +8346,7 @@ MYDWORD getZone(MYBYTE ind, char *zone)
 							cfig.mxServers[ind][cfig.mxCount[ind]].pref = fUShort(data);
 							data += sizeof(MYWORD);
 							fQu(req.cname, req.dnsp, data);
-							strcpy_s(cfig.mxServers[ind][cfig.mxCount[ind]].hostname, sizeof(cfig.mxServers[ind][cfig.mxCount[ind]].hostname), req.cname);
+							strcpy(cfig.mxServers[ind][cfig.mxCount[ind]].hostname, req.cname);
 							cfig.mxCount[ind]++;
 							added++;
 						}
@@ -8626,7 +8357,7 @@ MYDWORD getZone(MYBYTE ind, char *zone)
 						fQu(req.cname, req.dnsp, data);
 
 						if (!cfig.nsS[0] && strcasecmp(cfig.nsP, req.cname))
-							strcpy_s(cfig.nsS, sizeof(cfig.nsS), req.cname);
+							strcpy(cfig.nsS, req.cname);
 
 						break;
 
@@ -8649,7 +8380,7 @@ MYDWORD getZone(MYBYTE ind, char *zone)
 						lump.hostname = req.cname;
 						cache = createCache(&lump);
 
-						//sprintf_s(logBuff, sizeof(logBuff), "%s=%s=%u=%s=%s", req.mapname, req.cname, cache->mapname[0], &cache->mapname[1], cache->hostname);
+						//sprintf(logBuff, "%s=%s=%u=%s=%s", req.mapname, req.cname, cache->mapname[0], &cache->mapname[1], cache->hostname);
 						//logDNSMess(logBuff, 2);
 
 						if (cache)
@@ -8683,39 +8414,38 @@ MYDWORD getZone(MYBYTE ind, char *zone)
 			}
 
 			//printf("Refresh ind %i serial %u size %i\n", ind, serial1, dnsCache[ind].size());
-			sprintf_s(logBuff, sizeof(logBuff), "Zone %s Transferred from Primary Server, %u RRs imported", zone, added);
+			sprintf(logBuff, "Zone %s Transferred from Primary Server, %u RRs imported", zone, added);
 			logDNSMess(logBuff, 1);
 			return serial1;
 		}
 		else
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "Primary Server %s, zone %s Invalid AXFR data", IP2String(ipbuff, sizeof(ipbuff), req.remote.sin_addr.s_addr), zone);
+			sprintf(logBuff, "Primary Server %s, zone %s Invalid AXFR data", IP2String(ipbuff, req.remote.sin_addr.s_addr), zone);
 			logDNSMess(logBuff, 1);
 		}
 	}
 	else
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "Failed to contact Primary Server %s, Zone Transfer Failed", IP2String(ipbuff, sizeof(ipbuff), req.remote.sin_addr.s_addr));
+		sprintf(logBuff, "Failed to contact Primary Server %s, Zone Transfer Failed", IP2String(ipbuff, req.remote.sin_addr.s_addr));
 		logDNSMess(logBuff, 1);
 		closesocket(req.sock);
 		return 0;
 	}
-  return 0;
 }
 
 bool getSecondary()
 {
 	char logBuff[512];
 	MYDWORD ip;
-	//MYDWORD hostExpiry = 0;
+	MYDWORD hostExpiry = 0;
 	MYDWORD expiry = 0;
 	char *data = NULL;
 	char *dp = NULL;
 	MYWORD rr = 0;
-	dnsRequest req;
-	//MYDWORD serial = 0;
+	data5 req;
+	MYDWORD serial = 0;
 
-	memset(&req, 0, sizeof(dnsRequest));
+	memset(&req, 0, sizeof(data5));
 	req.sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
 	if (req.sock == INVALID_SOCKET)
@@ -8734,7 +8464,7 @@ bool getSecondary()
 	}
 
 	req.remote.sin_family = AF_INET;
-	req.remote.sin_port = htons(dnsPort);
+	req.remote.sin_port = htons(IPPORT_DNS);
 
 	if (dhcpService && cfig.replication == 1)
 		req.remote.sin_addr.s_addr = cfig.zoneServers[1];
@@ -8752,11 +8482,11 @@ bool getSecondary()
 		req.dnsp->header.qdcount = htons(1);
 		req.dnsp->header.xid = (t % USHRT_MAX);
 		req.dp = &req.dnsp->data;
-		req.dp += putQueryString(req.dp, cfig.authority, sizeof(req.raw) - (req.dp - req.raw));
-		req.dp += putUnsignedShort(req.dp, DNS_TYPE_AXFR, sizeof(req.raw) - (req.dp - req.raw));
-		req.dp += putUnsignedShort(req.dp, DNS_CLASS_IN, sizeof(req.raw) - (req.dp - req.raw));
-		req.bytes = (int)(req.dp - req.raw);
-		putUnsignedShort(req.raw, (req.bytes - 2));
+		req.dp += pQu(req.dp, cfig.authority);
+		req.dp += pUShort(req.dp, DNS_TYPE_AXFR);
+		req.dp += pUShort(req.dp, DNS_CLASS_IN);
+		req.bytes = req.dp - req.raw;
+		pUShort(req.raw, (req.bytes - 2));
 
 		if (send(req.sock, req.raw, req.bytes, 0) < req.bytes)
 		{
@@ -8771,13 +8501,13 @@ bool getSecondary()
 
 		while (kRunning)
 		{
-			req.bytes = (int)fread(req.raw, 1, 2, f);
+			req.bytes = fread(req.raw, 1, 2, f);
 
 			if (req.bytes < 2)
 				break;
 
 			MYWORD pktSize = fUShort(req.raw);
-			req.bytes = (int)fread(req.raw, 1, pktSize, f);
+			req.bytes = fread(req.raw, 1, pktSize, f);
 
 			if ((MYWORD)req.bytes != pktSize)
 			{
@@ -8818,7 +8548,7 @@ bool getSecondary()
 					return  false;
 				}
 
-				req.dnsType = (unsigned char)fUShort(req.dp);
+				req.dnsType = fUShort(req.dp);
 				req.dp += 2; //type
 				req.qclass = fUShort(req.dp);
 				req.dp += 2; //class
@@ -8837,8 +8567,7 @@ bool getSecondary()
 					if (dp)
 					{
 						*dp = 0;
-						inet_pton(AF_INET, req.mapname, &ip);
-						ip = ntohl(ip);
+						ip = ntohl(inet_addr(req.mapname));
 						fQu(req.cname, req.dnsp, data);
 						makeLocal(req.cname);
 
@@ -8852,7 +8581,7 @@ bool getSecondary()
 								if (ip == dhcpEntry->ip && !strcasecmp(req.cname, dhcpEntry->hostname))
 								{
 									if (expiry < (MYDWORD)(INT_MAX - t))
-										expiry += (unsigned int)t;
+										expiry += t;
 									else
 										expiry = INT_MAX;
 
@@ -8873,7 +8602,7 @@ bool getSecondary()
 			}
 		}
 
-		sprintf_s(logBuff, sizeof(logBuff), "%u RRs rebuild from Secondary Server", rr);
+		sprintf(logBuff, "%u RRs rebuild from Secondary Server", rr);
 		logDNSMess(logBuff, 2);
 		fclose(f);
 		return true;
@@ -8900,18 +8629,17 @@ void __cdecl init(void *lpParam)
 	GetModuleFileName(NULL, filePATH, _MAX_PATH);
 	char *fileExt = strrchr(filePATH, '.');
 	*fileExt = 0;
-	if (strlen(leaFile) == 0) sprintf_s(leaFile, sizeof(leaFile), "%s.state", filePATH);
-	if (strlen(iniFile) == 0) sprintf_s(iniFile, sizeof(iniFile), "%s.ini", filePATH);
-	sprintf_s(lnkFile, sizeof(lnkFile), "%s.url", filePATH);
-	sprintf_s(htmFile, sizeof(htmFile), "%s.htm", filePATH);
-	sprintf_s(tempFile, sizeof(tempFile), "%s.tmp", filePATH);
+	sprintf(leaFile, "%s.state", filePATH);
+	sprintf(iniFile, "%s.ini", filePATH);
+	sprintf(lnkFile, "%s.url", filePATH);
+	sprintf(htmFile, "%s.htm", filePATH);
+	sprintf(tempFile, "%s.tmp", filePATH);
 	fileExt = strrchr(filePATH, '\\');
 	*fileExt = 0;
 	fileExt++;
-	if (strlen(logPath)==0) sprintf_s(logFile, sizeof(logFile), "%s\\log\\%s%%Y%%m%%d.log", filePATH, fileExt);
-	else sprintf_s(logFile, sizeof(logFile), "%s\\%s%%Y%%m%%d.log", logPath, fileExt);
-	sprintf_s(cliFile, sizeof(cliFile), "%s\\log\\%%s.log", filePATH);
-	strcat_s(filePATH, sizeof(filePATH), "\\");
+	sprintf(logFile, "%s\\log\\%s%%Y%%m%%d.log", filePATH, fileExt);
+	sprintf(cliFile, "%s\\log\\%%s.log", filePATH);
+	strcat(filePATH, "\\");
 
 	//printf("log=%s\n", logFile);
 
@@ -8926,19 +8654,21 @@ void __cdecl init(void *lpParam)
 
 	if (lEvent == NULL)
 	{
-		printf("CreateEvent error: %lu\n", GetLastError());
+		printf("CreateEvent error: %d\n", GetLastError());
+		Sleep(1000);
 		exit(-1);
 	}
 	else if ( GetLastError() == ERROR_ALREADY_EXISTS )
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "CreateEvent opened an existing Event\nServer May already be Running");
+		sprintf(logBuff, "CreateEvent opened an existing Event, Server may already be Running");
 		logDHCPMess(logBuff, 0);
+		Sleep(1000);
 		exit(-1);
 	}
 
 	SetEvent(lEvent);
 
-	if ((f = openSection("LOGGING", 1)))
+	if (f = openSection("LOGGING", 1))
 	{
 		tempbuff[0] = 0;
 
@@ -8957,7 +8687,7 @@ void __cdecl init(void *lpParam)
 					else if (!strcasecmp(value, "All"))
 						cfig.dnsLogLevel = 2;
 					else
-						sprintf_s(tempbuff,sizeof(tempbuff), "Section [LOGGING], Invalid DNSLogLevel: %s", value);
+						sprintf(tempbuff, "Section [LOGGING], Invalid DNSLogLevel: %s", value);
 				}
 				else if (!strcasecmp(name, "DHCPLogLevel"))
 				{
@@ -8970,24 +8700,24 @@ void __cdecl init(void *lpParam)
 //					else if (!strcasecmp(value, "Debug"))
 //						cfig.dhcpLogLevel = 3;
 					else
-						sprintf_s(tempbuff,sizeof(tempbuff), "Section [LOGGING], Invalid DHCPLogLevel: %s", value);
+						sprintf(tempbuff, "Section [LOGGING], Invalid DHCPLogLevel: %s", value);
 				}
 				else
-					sprintf_s(tempbuff,sizeof(tempbuff), "Section [LOGGING], Invalid Entry %s ignored", raw);
+					sprintf(tempbuff, "Section [LOGGING], Invalid Entry %s ignored", raw);
 			}
 			else
-				sprintf_s(tempbuff,sizeof(tempbuff), "Section [LOGGING], Invalid Entry %s ignored", raw);
+				sprintf(tempbuff, "Section [LOGGING], Invalid Entry %s ignored", raw);
 		}
 
 		if (tempbuff[0])
 			logMess(tempbuff, 1);
 
-		sprintf_s(logBuff, sizeof(logBuff), "%s %s Starting...", sVersionName, sVersionNumber);
+		sprintf(logBuff, "%s Starting...", sVersion);
 		logMess(logBuff, 1);
 	}
 	else
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "%s %s Starting...", sVersionName, sVersionNumber);
+		sprintf(logBuff, "%s Starting...", sVersion);
 		logMess(logBuff, 1);
 	}
 
@@ -8996,11 +8726,11 @@ void __cdecl init(void *lpParam)
 
 	if (cfig.wsaData.wVersion != wVersionRequested)
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "WSAStartup Error");
+		sprintf(logBuff, "WSAStartup Error");
 		logMess(logBuff, 1);
 	}
 
-	if ((f = openSection("SERVICES", 1)))
+	if (f = openSection("SERVICES", 1))
 	{
 		dhcpService = false;
 		dnsService = false;
@@ -9012,7 +8742,7 @@ void __cdecl init(void *lpParam)
 				dhcpService = true;
 			else
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Section [SERVICES] invalid entry %s ignored", raw);
+				sprintf(logBuff, "Section [SERVICES] invalid entry %s ignored", raw);
 				logMess(logBuff, 1);
 			}
 
@@ -9025,7 +8755,7 @@ void __cdecl init(void *lpParam)
 
 	if (dnsService)
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "Starting DNS Service");
+		sprintf(logBuff, "Starting DNS Service");
 		logDNSMess(logBuff, 1);
 
 		if (FILE *f = openSection("FORWARDING_SERVERS", 1))
@@ -9034,13 +8764,12 @@ void __cdecl init(void *lpParam)
 			{
 				if (isIP(raw))
 				{
-					MYDWORD addr;
-					inet_pton(AF_INET, raw, &addr);
+					MYDWORD addr = inet_addr(raw);
 					addServer(cfig.specifiedDnsServers, MAX_SERVERS, addr);
 				}
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Section [FORWARDING_SERVERS] Invalid Entry: %s ignored", raw);
+					sprintf(logBuff, "Section [FORWARDING_SERVERS] Invalid Entry: %s ignored", raw);
 					logDNSMess(logBuff, 1);
 				}
 			}
@@ -9049,20 +8778,20 @@ void __cdecl init(void *lpParam)
 
 	if (dhcpService)
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "Starting DHCP Service");
+		sprintf(logBuff, "Starting DHCP Service");
 		logDHCPMess(logBuff, 1);
 	}
 
 	if (dnsService)
 	{
 		if (cfig.dnsLogLevel == 3)
-			sprintf_s(logBuff, sizeof(logBuff), "DNS Logging: All");
+			sprintf(logBuff, "DNS Logging: All");
 		else if (cfig.dnsLogLevel == 2)
-			sprintf_s(logBuff, sizeof(logBuff), "DNS Logging: All");
+			sprintf(logBuff, "DNS Logging: All");
 		else if (cfig.dnsLogLevel == 1)
-			sprintf_s(logBuff, sizeof(logBuff), "DNS Logging: Normal");
+			sprintf(logBuff, "DNS Logging: Normal");
 		else
-			sprintf_s(logBuff, sizeof(logBuff), "DNS Logging: None");
+			sprintf(logBuff, "DNS Logging: None");
 
 		logDNSMess(logBuff, 1);
 	}
@@ -9070,30 +8799,29 @@ void __cdecl init(void *lpParam)
 	if (dhcpService)
 	{
 		if (cfig.dhcpLogLevel == 3)
-			sprintf_s(logBuff, sizeof(logBuff), "DHCP Logging: Debug");
+			sprintf(logBuff, "DHCP Logging: Debug");
 		else if (cfig.dhcpLogLevel == 2)
-			sprintf_s(logBuff, sizeof(logBuff), "DHCP Logging: All");
+			sprintf(logBuff, "DHCP Logging: All");
 		else if (cfig.dhcpLogLevel == 1)
-			sprintf_s(logBuff, sizeof(logBuff), "DHCP Logging: Normal");
+			sprintf(logBuff, "DHCP Logging: Normal");
 		else
-			sprintf_s(logBuff, sizeof(logBuff), "DHCP Logging: None");
+			sprintf(logBuff, "DHCP Logging: None");
 
 		logDHCPMess(logBuff, 1);
 	}
 
-	if ((f = openSection("LISTEN_ON", 1)))
+	if (f = openSection("LISTEN_ON", 1))
 	{
 		while (readSection(raw, f))
 		{
 			if (isIP(raw))
 			{
-				MYDWORD addr;
-				inet_pton(AF_INET, raw, &addr);
+				MYDWORD addr = inet_addr(raw);
 				addServer(cfig.specifiedServers, MAX_SERVERS, addr);
 			}
 			else
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: Section [LISTEN_ON], Invalid Interface Address %s, ignored", raw);
+				sprintf(logBuff, "Warning: Section [LISTEN_ON], Invalid Interface Address %s, ignored", raw);
 				logMess(logBuff, 1);
 			}
 		}
@@ -9101,7 +8829,7 @@ void __cdecl init(void *lpParam)
 
 	cfig.lease = 36000;
 
-	if ((f = openSection("TIMINGS", 1)))
+	if (f = openSection("TIMINGS", 1))
 	{
 		while (readSection(raw, f))
 		{
@@ -9127,24 +8855,24 @@ void __cdecl init(void *lpParam)
 					else if (!strcasecmp(name, "Minimum"))
 						cfig.minimum = atol(value);
 					else if (!strcasecmp(name, "MinCacheTime"))
-						cfig.minCache = atoi(value);
+						cfig.minCache = atol(value);
 					else if (!strcasecmp(name, "MaxCacheTime"))
-						cfig.maxCache = atoi(value);
+						cfig.maxCache = atol(value);
 					else
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "Section [TIMINGS], Invalid Entry: %s ignored", raw);
+						sprintf(logBuff, "Section [TIMINGS], Invalid Entry: %s ignored", raw);
 						logDNSMess(logBuff, 1);
 					}
 				}
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Section [TIMINGS], Invalid value: %s ignored", value);
+					sprintf(logBuff, "Section [TIMINGS], Invalid value: %s ignored", value);
 					logDNSMess(logBuff, 1);
 				}
 			}
 			else
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Section [TIMINGS], Missing value, entry %s ignored", raw);
+				sprintf(logBuff, "Section [TIMINGS], Missing value, entry %s ignored", raw);
 				logDNSMess(logBuff, 1);
 			}
 		}
@@ -9163,7 +8891,7 @@ void __cdecl init(void *lpParam)
 
 	if (!cfig.retry || cfig.retry > cfig.refresh)
 	{
-		cfig.retry = cfig.refresh / 5;
+		cfig.retry = cfig.refresh / 10;
 
 		if (cfig.retry > 600)
 			cfig.retry = 600;
@@ -9183,7 +8911,7 @@ void __cdecl init(void *lpParam)
 	if (!cfig.minimum)
 		cfig.minimum = cfig.retry;
 
-	if ((f = openSection("DOMAIN_NAME", 1)))
+	if (f = openSection("DOMAIN_NAME", 1))
 	{
 		while (readSection(raw, f))
 		{
@@ -9214,8 +8942,8 @@ void __cdecl init(void *lpParam)
 
 						mask.octate[0] = UCHAR_MAX;
 						network.octate[0] = atoi(left);
-						strcat_s(cfig.authority,sizeof(cfig.authority), left);
-						strcat_s(cfig.authority,sizeof(cfig.authority), ".");
+						strcat(cfig.authority, left);
+						strcat(cfig.authority, ".");
 					}
 					else
 						break;
@@ -9226,18 +8954,18 @@ void __cdecl init(void *lpParam)
 
 				if (!strcasecmp(value, arpa + 1))
 				{
-					strcat_s(cfig.authority,sizeof(cfig.authority), arpa + 1);
-					cfig.aLen = (unsigned char)strlen(cfig.authority);
+					strcat(cfig.authority, arpa + 1);
+					cfig.aLen = strlen(cfig.authority);
 					calcRangeLimits(network.ip, mask.ip, &cfig.rangeStart, &cfig.rangeEnd);
-					//IP2String(logBuff, sizeof(logBuff), htonl(cfig.rangeStart));
+					//IP2String(logBuff, htonl(cfig.rangeStart));
 					//logMess(logBuff, 1);
-					//IP2String(logBuff, sizeof(logBuff), htonl(cfig.rangeEnd));
+					//IP2String(logBuff, htonl(cfig.rangeEnd));
 					//logMess(logBuff, 1);
 					cfig.authorized = 1;
 				}
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: Invalid Domain Name (Part %s), ignored", cfig.authority);
+					sprintf(logBuff, "Warning: Invalid Domain Name (Part %s), ignored", cfig.authority);
 					cfig.aLen = 0;
 					cfig.authority[0] = 0;
 					logDNSMess(logBuff, 1);
@@ -9246,123 +8974,123 @@ void __cdecl init(void *lpParam)
 
 			if (chkQu(name))
 			{
-				strcpy_s(cfig.zone, sizeof(cfig.zone), name);
-				cfig.zLen = (unsigned char)strlen(cfig.zone);
+				strcpy(cfig.zone, name);
+				cfig.zLen = strlen(cfig.zone);
 			}
 			else
 			{
 				cfig.aLen = 0;
 				cfig.authority[0] = 0;
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: Invalid Domain Name %s, ignored", raw);
+				sprintf(logBuff, "Warning: Invalid Domain Name %s, ignored", raw);
 				logDNSMess(logBuff, 1);
 			}
 		}
 	}
 
 	getInterfaces(&network);
-	sprintf_s(cfig.servername_fqn,sizeof(cfig.servername_fqn), "%s.%s", cfig.servername, cfig.zone);
+	sprintf(cfig.servername_fqn, "%s.%s", cfig.servername, cfig.zone);
 
-	if ((f = openSection("ZONE_REPLICATION", 1)))
+	while (true)
 	{
-		int i = 2;
-		while (readSection(raw, f))
+		if (f = openSection("ZONE_REPLICATION", 1))
 		{
-			if(i < MAX_TCP_CLIENTS)
+			int i = 2;
+			while (readSection(raw, f))
 			{
-				if (dnsService && !cfig.authorized)
+				if(i < MAX_TCP_CLIENTS)
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Section [ZONE_REPLICATION], Server is not an authority, entry %s ignored", raw);
-					logDNSMess(logBuff, 1);
-					continue;
-				}
-
-				mySplit(name, value, raw, '=');
-
-				if (name[0] && value[0])
-				{
-					if (chkQu(name) && !isIP(name) && isIP(value))
+					if (!cfig.authorized)
 					{
-						if (!strcasecmp(name, "Primary"))
+						sprintf(logBuff, "Section [ZONE_REPLICATION], Server is not an authority, entry %s ignored", raw);
+						logDNSMess(logBuff, 1);
+						continue;
+					}
+
+					mySplit(name, value, raw, '=');
+
+					if (name[0] && value[0])
+					{
+						if (chkQu(name) && !isIP(name) && isIP(value))
 						{
-							inet_pton(AF_INET, value, &(cfig.zoneServers[0]));
-						}
-						else if (!strcasecmp(name, "Secondary"))
-						{
-							inet_pton(AF_INET, value, &(cfig.zoneServers[1]));
-						}
-						else if (dnsService && !strcasecmp(name, "AXFRClient"))
-						{
-							inet_pton(AF_INET, value, &(cfig.zoneServers[i]));
-							i++;
+							if (!strcasecmp(name, "Primary"))
+								cfig.zoneServers[0] = inet_addr(value);
+							else if (!strcasecmp(name, "Secondary"))
+								cfig.zoneServers[1] = inet_addr(value);
+							else if (!strcasecmp(name, "AXFRClient"))
+							{
+								cfig.zoneServers[i] = inet_addr(value);
+								i++;
+							}
+							else
+							{
+								sprintf(logBuff, "Section [ZONE_REPLICATION] Invalid Entry: %s ignored", raw);
+								logDNSMess(logBuff, 1);
+							}
 						}
 						else
 						{
-							sprintf_s(logBuff, sizeof(logBuff), "Section [ZONE_REPLICATION] Invalid Entry: %s ignored", raw);
+							sprintf(logBuff, "Section [ZONE_REPLICATION] Invalid Entry: %s ignored", raw);
 							logDNSMess(logBuff, 1);
 						}
 					}
 					else
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "Section [ZONE_REPLICATION] Invalid Entry: %s ignored", raw);
+						sprintf(logBuff, "Section [ZONE_REPLICATION], Missing value, entry %s ignored", raw);
 						logDNSMess(logBuff, 1);
 					}
 				}
+			}
+
+			if (!cfig.zoneServers[0] && !cfig.zoneServers[1])
+				break;
+			else if (!cfig.zoneServers[0] && cfig.zoneServers[1])
+			{
+				sprintf(logBuff, "Section [ZONE_REPLICATION] Missing Primary Server, stopping");
+				logDNSMess(logBuff, 1);
+				Sleep(1000);
+				exit (-1);
+			}
+			else if (cfig.zoneServers[0] && !cfig.zoneServers[1])
+			{
+				sprintf(logBuff, "Section [ZONE_REPLICATION] Missing Secondary Server, stopping");
+				logDNSMess(logBuff, 1);
+				Sleep(1000);
+				exit (-1);
+			}
+			else
+			{
+				if (findServer(network.allServers, MAX_SERVERS, cfig.zoneServers[0]) && findServer(network.allServers, MAX_SERVERS, cfig.zoneServers[1]))
+				{
+					sprintf(logBuff, "Section [ZONE_REPLICATION] Primary & Secondary should be Different Boxes, stopping");
+					logDNSMess(logBuff, 1);
+					Sleep(1000);
+					exit(-1);
+				}
+				else if (findServer(network.allServers, MAX_SERVERS, cfig.zoneServers[0]))
+				{
+					cfig.replication = 1;
+					break;
+				}
+				else if (findServer(network.allServers, MAX_SERVERS, cfig.zoneServers[1]))
+				{
+					cfig.replication = 2;
+					break;
+				}
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Section [ZONE_REPLICATION], Missing value, entry %s ignored", raw);
+					sprintf(logBuff, "Section [ZONE_REPLICATION] No Server IP not found on this Machine, waiting %u seconds", cfig.retry);
 					logDNSMess(logBuff, 1);
 				}
 			}
 		}
-	}
 
-	if (!cfig.zoneServers[0] && cfig.zoneServers[1])
-	{
-		sprintf_s(logBuff, sizeof(logBuff), "Section [ZONE_REPLICATION] Missing Primary Server");
-		logDNSMess(logBuff, 1);
-	}
-	else if (cfig.zoneServers[0] && !cfig.zoneServers[1])
-	{
-		sprintf_s(logBuff, sizeof(logBuff), "Section [ZONE_REPLICATION] Missing Secondary Server");
-		logDNSMess(logBuff, 1);
-	}
-	else if (cfig.zoneServers[0] && cfig.zoneServers[1])
-	{
-		if (findServer(network.staticServers, MAX_SERVERS, cfig.zoneServers[0]) && findServer(network.staticServers, MAX_SERVERS, cfig.zoneServers[1]))
-		{
-			sprintf_s(logBuff, sizeof(logBuff), "Section [ZONE_REPLICATION] Primary & Secondary should be Different Boxes");
-			logDNSMess(logBuff, 1);
-		}
-		else if (findServer(network.staticServers, MAX_SERVERS, cfig.zoneServers[0]))
-			cfig.replication = 1;
-		else if (findServer(network.staticServers, MAX_SERVERS, cfig.zoneServers[1]))
-			cfig.replication = 2;
-		else
-		{
-			sprintf_s(logBuff, sizeof(logBuff), "Section [ZONE_REPLICATION] No Server IP not found on this Machine");
-			logDNSMess(logBuff, 1);
-		}
+		Sleep(cfig.retry * 1000);
+		getInterfaces(&network);
 	}
 
 	if (dhcpService)
 	{
 		loadDHCP();
-
-		if ((f = openSection("DHCP_SERVER_PORT", 1)))
-		{
-			while (readSection(raw, f))
-				dhcpServerPort = atoi(raw);
-		}
-		sprintf_s(logBuff, sizeof(logBuff), "Using DHCP Server Port of %u", dhcpServerPort);
-		logDNSMess(logBuff, 1);
-
-		if ((f = openSection("DHCP_CLIENT_PORT", 1)))
-		{
-			while (readSection(raw, f))
-				dhcpClientPort = atoi(raw);
-		}
-		sprintf_s(logBuff, sizeof(logBuff), "Using DHCP Client Port of %u", dhcpClientPort);
-		logDNSMess(logBuff, 1);
 
 		fEvent = CreateEvent(
 			NULL,                  // default security descriptor
@@ -9372,13 +9100,15 @@ void __cdecl init(void *lpParam)
 
 		if (fEvent == NULL)
 		{
-			printf("CreateEvent error: %lu\n", GetLastError());
+			printf("CreateEvent error: %d\n", GetLastError());
+			Sleep(1000);
 			exit(-1);
 		}
 		else if ( GetLastError() == ERROR_ALREADY_EXISTS )
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "CreateEvent opened an existing Event\nServer May already be Running");
+			sprintf(logBuff, "CreateEvent opened an existing Event\nServer May already be Running");
 			logDHCPMess(logBuff, 0);
+			Sleep(1000);
 			exit(-1);
 		}
 		//SetEvent(fEvent);
@@ -9397,21 +9127,24 @@ void __cdecl init(void *lpParam)
 		}
 		else if ( GetLastError() == ERROR_ALREADY_EXISTS )
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "CreateEvent opened an existing Event\nServer May already be Running");
+			sprintf(logBuff, "CreateEvent opened an existing Event\nServer May already be Running");
 			logDHCPMess(logBuff, 0);
 			exit(-1);
 		}
 		//SetEvent(rEvent);
 */
-		for (int i = 0; i < cfig.rangeCount; i++)
+
+/*
+	for (int i = 0; i < cfig.rangeCount; i++)
 		{
 			char *logPtr = logBuff;
-			logPtr += sprintf_s(logPtr, sizeof(logBuff) - (logPtr - logBuff), "DHCP Range: ");
-			logPtr += sprintf_s(logPtr, sizeof(logBuff) - (logPtr - logBuff), "%s", IP2String(ipbuff, sizeof(ipbuff), htonl(cfig.dhcpRanges[i].rangeStart)));
-			logPtr += sprintf_s(logPtr, sizeof(logBuff) - (logPtr - logBuff), "-%s", IP2String(ipbuff, sizeof(ipbuff), htonl(cfig.dhcpRanges[i].rangeEnd)));
-			logPtr += sprintf_s(logPtr, sizeof(logBuff) - (logPtr - logBuff), "/%s", IP2String(ipbuff, sizeof(ipbuff), cfig.dhcpRanges[i].mask));
+			logPtr += sprintf(logPtr, "DHCP Range: ");
+			logPtr += sprintf(logPtr, "%s", IP2String(ipbuff, htonl(cfig.dhcpRanges[i].rangeStart)));
+			logPtr += sprintf(logPtr, "-%s", IP2String(ipbuff, htonl(cfig.dhcpRanges[i].rangeEnd)));
+			logPtr += sprintf(logPtr, "/%s", IP2String(ipbuff, cfig.dhcpRanges[i].mask));
 			logDHCPMess(logBuff, 1);
 		}
+*/
 
 		if (cfig.replication)
 		{
@@ -9422,23 +9155,7 @@ void __cdecl init(void *lpParam)
 
 	if (dnsService)
 	{
-		if ((f = openSection("DNS_PORT", 1)))
-		{
-			while (readSection(raw, f))
-				dnsPort = atoi(raw);
-		}
-		sprintf_s(logBuff, sizeof(logBuff), "Using DNS Port of %u", dnsPort);
-		logDNSMess(logBuff, 1);
-
-		if ((f = openSection("DNS_FORWARD_PORT", 1)))
-		{
-			while (readSection(raw, f))
-				dnsForwardPort = atoi(raw);
-		}
-		sprintf_s(logBuff, sizeof(logBuff), "Using DNS Forward Port of %u", dnsForwardPort);
-		logDNSMess(logBuff, 1);
-
-		if ((f = openSection("DNS_ALLOWED_HOSTS", 1)))
+		if (f = openSection("DNS_ALLOWED_HOSTS", 1))
 		{
 			int i = 0;
 
@@ -9452,15 +9169,12 @@ void __cdecl init(void *lpParam)
 
 					if (isIP(name) && isIP(value))
 					{
-						inet_pton(AF_INET, name, &rs);
-						rs = ntohl(rs);
-						inet_pton(AF_INET, value, &re);
-						re = ntohl(re);
+						rs = htonl(inet_addr(name));
+						re = htonl(inet_addr(value));
 					}
 					else if (isIP(name) && !value[0])
 					{
-						inet_pton(AF_INET, name, &rs);
-						rs = ntohl(rs);
+						rs = htonl(inet_addr(name));
 						re = rs;
 					}
 
@@ -9474,7 +9188,7 @@ void __cdecl init(void *lpParam)
 					}
 					else
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "Section [DNS_ALLOWED_HOSTS] Invalid entry %s in ini file, ignored", raw);
+						sprintf(logBuff, "Section [DNS_ALLOWED_HOSTS] Invalid entry %s in ini file, ignored", raw);
 						logDNSMess(logBuff, 1);
 					}
 				}
@@ -9491,8 +9205,7 @@ void __cdecl init(void *lpParam)
 				{
 					if (chkQu(name) && !isIP(name))
 					{
-						MYDWORD ip;
-						inet_pton(AF_INET, value, &ip);
+						MYDWORD ip = inet_addr(value);
 						MYBYTE nameType = makeLocal(name);
 						bool ipLocal = isLocal(ip);
 
@@ -9501,9 +9214,9 @@ void __cdecl init(void *lpParam)
 							addHostNotFound(name);
 							continue;
 						}
-						else if (!ip)
+						else if (!ip || ip == INADDR_NONE)
 						{
-							sprintf_s(logBuff, sizeof(logBuff), "Section [DNS_HOSTS] Invalid Entry %s ignored", raw);
+							sprintf(logBuff, "Section [DNS_HOSTS] Invalid Entry %s ignored", raw);
 							logDNSMess(logBuff, 1);
 							continue;
 						}
@@ -9519,7 +9232,7 @@ void __cdecl init(void *lpParam)
 							default:
 								if (cfig.replication)
 								{
-									sprintf_s(logBuff, sizeof(logBuff), "Section [DNS_HOSTS] forward entry for %s not in Forward Zone, ignored", raw);
+									sprintf(logBuff, "Section [DNS_HOSTS] forward entry for %s not in Forward Zone, ignored", raw);
 									logDNSMess(logBuff, 1);
 								}
 								else
@@ -9535,7 +9248,7 @@ void __cdecl init(void *lpParam)
 						}
 						else if (cfig.replication)
 						{
-							sprintf_s(logBuff, sizeof(logBuff), "Section [DNS_HOSTS] reverse entry for %s not in Reverse Zone, ignored", raw);
+							sprintf(logBuff, "Section [DNS_HOSTS] reverse entry for %s not in Reverse Zone, ignored", raw);
 							logDNSMess(logBuff, 1);
 						}
 						else
@@ -9543,13 +9256,13 @@ void __cdecl init(void *lpParam)
 					}
 					else
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "Section [DNS_HOSTS] Invalid Entry: %s ignored", raw);
+						sprintf(logBuff, "Section [DNS_HOSTS] Invalid Entry: %s ignored", raw);
 						logDNSMess(logBuff, 1);
 					}
 				}
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Section [DNS_HOSTS], Missing value, entry %s ignored", raw);
+					sprintf(logBuff, "Section [DNS_HOSTS], Missing value, entry %s ignored", raw);
 					logDNSMess(logBuff, 1);
 				}
 			}
@@ -9557,7 +9270,7 @@ void __cdecl init(void *lpParam)
 
 		if (cfig.replication != 2 && (f = openSection("ALIASES", 1)))
 		{
-			//int i = 0;
+			int i = 0;
 
 			while (readSection(raw, f))
 			{
@@ -9596,25 +9309,25 @@ void __cdecl init(void *lpParam)
 							}
 							else
 							{
-								sprintf_s(logBuff, sizeof(logBuff), "Section [ALIASES] duplicate entry %s ignored", raw);
+								sprintf(logBuff, "Section [ALIASES] duplicate entry %s ignored", raw);
 								logDNSMess(logBuff, 1);
 							}
 						}
 						else
 						{
-							sprintf_s(logBuff, sizeof(logBuff), "Section [ALIASES] alias %s should be bare/local name, entry ignored", name);
+							sprintf(logBuff, "Section [ALIASES] alias %s should be bare/local name, entry ignored", name);
 							logDNSMess(logBuff, 1);
 						}
 					}
 					else
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "Section [ALIASES] Invalid Entry: %s ignored", raw);
+						sprintf(logBuff, "Section [ALIASES] Invalid Entry: %s ignored", raw);
 						logDNSMess(logBuff, 1);
 					}
 				}
 				else
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Section [ALIASES], Missing value, entry %s ignored", raw);
+					sprintf(logBuff, "Section [ALIASES], Missing value, entry %s ignored", raw);
 					logDNSMess(logBuff, 1);
 				}
 			}
@@ -9638,23 +9351,23 @@ void __cdecl init(void *lpParam)
 
 							if (!strchr(name, '.'))
 							{
-								strcat_s(name,sizeof(name), ".");
-								strcat_s(name,sizeof(name), cfig.zone);
+								strcat(name, ".");
+								strcat(name, cfig.zone);
 							}
 
-							strcpy_s(cfig.mxServers[0][cfig.mxCount[0]].hostname,sizeof(cfig.mxServers[0][cfig.mxCount[0]].hostname), name);
-							strcpy_s(cfig.mxServers[1][cfig.mxCount[0]].hostname,sizeof(cfig.mxServers[1][cfig.mxCount[0]].hostname), name);
+							strcpy(cfig.mxServers[0][cfig.mxCount[0]].hostname, name);
+							strcpy(cfig.mxServers[1][cfig.mxCount[0]].hostname, name);
 							cfig.mxCount[0]++;
 						}
 						else
 						{
-							sprintf_s(logBuff, sizeof(logBuff), "Section [MAIL_SERVERS] Invalid Entry: %s ignored", raw);
+							sprintf(logBuff, "Section [MAIL_SERVERS] Invalid Entry: %s ignored", raw);
 							logDNSMess(logBuff, 1);
 						}
 					}
 					else
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "Section [MAIL_SERVERS], Missing value, entry %s ignored", raw);
+						sprintf(logBuff, "Section [MAIL_SERVERS], Missing value, entry %s ignored", raw);
 						logDNSMess(logBuff, 1);
 					}
 				}
@@ -9662,7 +9375,7 @@ void __cdecl init(void *lpParam)
 			}
 		}
 
-		if ((f = openSection("CONDITIONAL_FORWARDERS", 1)))
+		if (f = openSection("CONDITIONAL_FORWARDERS", 1))
 		{
 			int i = 0;
 
@@ -9680,7 +9393,7 @@ void __cdecl init(void *lpParam)
 						{
 							if (!strcasecmp(cfig.dnsRoutes[j].zone, name))
 							{
-								sprintf_s(logBuff, sizeof(logBuff), "Section [CONDITIONAL_FORWARDERS], Duplicate Entry for Child Zone %s ignored", raw);
+								sprintf(logBuff, "Section [CONDITIONAL_FORWARDERS], Duplicate Entry for Child Zone %s ignored", raw);
 								logDNSMess(logBuff, 1);
 								break;
 							}
@@ -9697,61 +9410,58 @@ void __cdecl init(void *lpParam)
 									*value1 = 0;
 									value1++;
 
-									MYDWORD ip;
-									inet_pton(AF_INET, myTrim(value, value), &ip);
-									MYDWORD ip1;
-									inet_pton(AF_INET, myTrim(value1, value1), &ip1);
+									MYDWORD ip = inet_addr(myTrim(value, value));
+									MYDWORD ip1 = inet_addr(myTrim(value1, value1));
 
 									if (isIP(value) && isIP(value1))
 									{
-										strcpy_s(cfig.dnsRoutes[i].zone, sizeof(cfig.dnsRoutes[i].zone), name);
-										cfig.dnsRoutes[i].zLen = (unsigned short)strlen(cfig.dnsRoutes[i].zone);
+										strcpy(cfig.dnsRoutes[i].zone, name);
+										cfig.dnsRoutes[i].zLen = strlen(cfig.dnsRoutes[i].zone);
 										cfig.dnsRoutes[i].dns[0] = ip;
 										cfig.dnsRoutes[i].dns[1] = ip1;
 										i++;
 									}
 									else
 									{
-										sprintf_s(logBuff, sizeof(logBuff), "Section [CONDITIONAL_FORWARDERS] Invalid Entry: %s ignored", raw);
+										sprintf(logBuff, "Section [CONDITIONAL_FORWARDERS] Invalid Entry: %s ignored", raw);
 										logDNSMess(logBuff, 1);
 									}
 								}
 								else
 								{
-									MYDWORD ip;
-									inet_pton(AF_INET, value, &ip);
+									MYDWORD ip = inet_addr(value);
 
 									if (isIP(value))
 									{
-										strcpy_s(cfig.dnsRoutes[i].zone, sizeof(cfig.dnsRoutes[i].zone), name);
-										cfig.dnsRoutes[i].zLen = (unsigned short)strlen(cfig.dnsRoutes[i].zone);
+										strcpy(cfig.dnsRoutes[i].zone, name);
+										cfig.dnsRoutes[i].zLen = strlen(cfig.dnsRoutes[i].zone);
 										cfig.dnsRoutes[i].dns[0] = ip;
 										i++;
 									}
 									else
 									{
-										sprintf_s(logBuff, sizeof(logBuff), "Section [CONDITIONAL_FORWARDERS] Invalid Entry: %s ignored", raw);
+										sprintf(logBuff, "Section [CONDITIONAL_FORWARDERS] Invalid Entry: %s ignored", raw);
 										logDNSMess(logBuff, 1);
 									}
 								}
 							}
 							else
 							{
-								sprintf_s(logBuff, sizeof(logBuff), "Section [CONDITIONAL_FORWARDERS] Invalid Entry: %s ignored", raw);
+								sprintf(logBuff, "Section [CONDITIONAL_FORWARDERS] Invalid Entry: %s ignored", raw);
 								logDNSMess(logBuff, 1);
 							}
 						}
 					}
 					else
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "Section [CONDITIONAL_FORWARDERS], Missing value, entry %s ignored", raw);
+						sprintf(logBuff, "Section [CONDITIONAL_FORWARDERS], Missing value, entry %s ignored", raw);
 						logDNSMess(logBuff, 1);
 					}
 				}
 			}
 		}
 
-		if ((f = openSection("WILD_HOSTS", 1)))
+		if (f = openSection("WILD_HOSTS", 1))
 		{
 			int i = 0;
 
@@ -9765,22 +9475,21 @@ void __cdecl init(void *lpParam)
 					{
 						if (chkQu(name) && (isIP(value) || !strcasecmp(value, "0.0.0.0")))
 						{
-							MYDWORD ip;
-							inet_pton(AF_INET, value, &ip);
-							strcpy_s(cfig.wildHosts[i].wildcard,sizeof(cfig.wildHosts[i].wildcard), name);
+							MYDWORD ip = inet_addr(value);
+							strcpy(cfig.wildHosts[i].wildcard, name);
 							myLower(cfig.wildHosts[i].wildcard);
 							cfig.wildHosts[i].ip = ip;
 							i++;
 						}
 						else
 						{
-							sprintf_s(logBuff, sizeof(logBuff), "Section [WILD_HOSTS] Invalid Entry: %s ignored", raw);
+							sprintf(logBuff, "Section [WILD_HOSTS] Invalid Entry: %s ignored", raw);
 							logDNSMess(logBuff, 1);
 						}
 					}
 					else
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "Section [WILD_HOSTS], Missing value, entry %s ignored", raw);
+						sprintf(logBuff, "Section [WILD_HOSTS], Missing value, entry %s ignored", raw);
 						logDNSMess(logBuff, 1);
 					}
 				}
@@ -9790,11 +9499,11 @@ void __cdecl init(void *lpParam)
 		if (cfig.replication == 2)
 		{
 //			if (dhcpService)
-//				strcpy_s(cfig.nsS, sizeof(cfig.nsS), cfig.servername_fqn);
+//				strcpy(cfig.nsS, cfig.servername_fqn);
 
 			while (kRunning)
 			{
-//				//if (!dhcpService && !findEntry(IP2String(ipbuff, sizeof(ipbuff), htonl(cfig.zoneServers[1])), DNS_TYPE_PTR))
+//				//if (!dhcpService && !findEntry(IP2String(ipbuff, htonl(cfig.zoneServers[1])), DNS_TYPE_PTR))
 //				if (!dhcpService)
 //				{
 //					sendServerName();
@@ -9826,7 +9535,7 @@ void __cdecl init(void *lpParam)
 					break;
 				}
 
-				sprintf_s(logBuff, sizeof(logBuff), "Failed to get Zone(s) from Primary Server, waiting %d seconds to retry", cfig.retry);
+				sprintf(logBuff, "Failed to get Zone(s) from Primary Server, waiting %d seconds to retry", cfig.retry);
 				logDNSMess(logBuff, 1);
 
 				Sleep(cfig.retry*1000);
@@ -9848,10 +9557,7 @@ void __cdecl init(void *lpParam)
 							break;
 
 						case CTYPE_STATIC_PTR_AUTH:
-							unsigned __int32 ipTmp;
-							inet_pton(AF_INET, cache->mapname, &ipTmp);
-							ipTmp = ntohl(ipTmp);
-							holdIP(ipTmp);
+							holdIP(htonl(inet_addr(cache->mapname)));
 							break;
 					}
 
@@ -9870,45 +9576,44 @@ void __cdecl init(void *lpParam)
 		}
 		else if (cfig.replication == 1)
 		{
-			strcpy_s(cfig.nsP, sizeof(cfig.nsP), cfig.servername_fqn);
+			strcpy(cfig.nsP, cfig.servername_fqn);
 
 			if (!dhcpService)
 			{
-				findHost(cfig.nsS, sizeof(cfig.nsS), cfig.zoneServers[1]);
+				findHost(cfig.nsS, cfig.zoneServers[1]);
 
 				if (cfig.nsS[0])
 				{
-					strcat_s(cfig.nsS,sizeof(cfig.nsS), ".");
-					strcat_s(cfig.nsS,sizeof(cfig.nsS), cfig.zone);
+					strcat(cfig.nsS, ".");
+					strcat(cfig.nsS, cfig.zone);
 				}
 			}
 
-			cfig.serial1 = (unsigned int)t;
-			cfig.serial2 = (unsigned int)t;
+			cfig.serial1 = t;
+			cfig.serial2 = t;
 			cfig.expireTime = INT_MAX;
+/*
 			char localhost[] = "localhost";
-			unsigned __int32 ipTmp;
-			inet_pton(AF_INET, "127.0.0.1", &ipTmp);
-			add2Cache(localhost, ipTmp, INT_MAX, CTYPE_LOCALHOST_A, CTYPE_LOCALHOST_PTR);
+			add2Cache(localhost, inet_addr("127.0.0.1"), INT_MAX, CTYPE_LOCALHOST_A, CTYPE_LOCALHOST_PTR);
 
 			if (isLocal(cfig.zoneServers[0]))
 				add2Cache(cfig.servername, cfig.zoneServers[0], INT_MAX, CTYPE_SERVER_A_AUTH, CTYPE_SERVER_PTR_AUTH);
 			else
 				add2Cache(cfig.servername, cfig.zoneServers[0], INT_MAX, CTYPE_SERVER_A_AUTH, CTYPE_SERVER_PTR_NAUTH);
-
+*/
 			if (dhcpService)
 				getSecondary();
 		}
 		else
 		{
-			strcpy_s(cfig.nsP, sizeof(cfig.nsP), cfig.servername_fqn);
-			cfig.serial1 = (unsigned int)t;
-			cfig.serial2 = (unsigned int)t;
+			strcpy(cfig.nsP, cfig.servername_fqn);
+			cfig.serial1 = t;
+			cfig.serial2 = t;
 			cfig.expireTime = INT_MAX;
+
+/*
 			char localhost[] = "localhost";
-			unsigned __int32 ipTmp;
-			inet_pton(AF_INET, "127.0.0.1", &ipTmp);
-			add2Cache(localhost, ipTmp, INT_MAX, CTYPE_LOCALHOST_A, CTYPE_LOCALHOST_PTR);
+			add2Cache(localhost, inet_addr("127.0.0.1"), INT_MAX, CTYPE_LOCALHOST_A, CTYPE_LOCALHOST_PTR);
 
 			for (int i = 0; i < MAX_SERVERS && network.listenServers[i]; i++)
 			{
@@ -9917,6 +9622,7 @@ void __cdecl init(void *lpParam)
 				else
 					add2Cache(cfig.servername, network.listenServers[i], INT_MAX, CTYPE_SERVER_A_AUTH, CTYPE_SERVER_PTR_NAUTH);
 			}
+*/
 		}
 	}
 
@@ -9928,7 +9634,7 @@ void __cdecl init(void *lpParam)
 
 			if (cfig.dhcpReplConn.sock == INVALID_SOCKET)
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Failed to Create DHCP Replication Socket");
+				sprintf(logBuff, "Failed to Create DHCP Replication Socket");
 				logDHCPMess(logBuff, 1);
 			}
 			else
@@ -9949,12 +9655,12 @@ void __cdecl init(void *lpParam)
 				if (nRet == SOCKET_ERROR)
 				{
 					cfig.dhcpReplConn.ready = false;
-					sprintf_s(logBuff, sizeof(logBuff), "DHCP Replication Server, Bind Failed");
+					sprintf(logBuff, "DHCP Replication Server, Bind Failed");
 					logDHCPMess(logBuff, 1);
 				}
 				else
 				{
-					cfig.dhcpReplConn.port = dhcpServerPort;
+					cfig.dhcpReplConn.port = IPPORT_DHCPS;
 					cfig.dhcpReplConn.loaded = true;
 					cfig.dhcpReplConn.ready = true;
 
@@ -9963,7 +9669,7 @@ void __cdecl init(void *lpParam)
 					token.vp = token.dhcpp.vend_data;
 					token.messsize = sizeof(dhcp_packet);
 
-					token.remote.sin_port = htons(dhcpServerPort);
+					token.remote.sin_port = htons(IPPORT_DHCPS);
 					token.remote.sin_family = AF_INET;
 
 					if (cfig.replication == 1)
@@ -9972,8 +9678,8 @@ void __cdecl init(void *lpParam)
 						token.remote.sin_addr.s_addr = cfig.zoneServers[0];
 
 					token.dhcpp.header.bp_op = BOOTP_REQUEST;
-					token.dhcpp.header.bp_xid = (unsigned int)t;
-					strcpy_s(token.dhcpp.header.bp_sname, sizeof(token.dhcpp.header.bp_sname), cfig.servername);
+					token.dhcpp.header.bp_xid = t;
+					strcpy(token.dhcpp.header.bp_sname, cfig.servername);
 					token.dhcpp.header.bp_magic_num[0] = 99;
 					token.dhcpp.header.bp_magic_num[1] = 130;
 					token.dhcpp.header.bp_magic_num[2] = 83;
@@ -9990,9 +9696,9 @@ void __cdecl init(void *lpParam)
 						op.size = 4;
 
 						if (cfig.replication == 1)
-							putIP(op.value, cfig.zoneServers[0]);
+							pIP(op.value, cfig.zoneServers[0]);
 						else
-							putIP(op.value, cfig.zoneServers[1]);
+							pIP(op.value, cfig.zoneServers[1]);
 
 						pvdata(&token, &op);
 					}
@@ -10004,7 +9710,7 @@ void __cdecl init(void *lpParam)
 
 					token.vp[0] = DHCP_OPTION_END;
 					token.vp++;
-					token.bytes = (int)(token.vp - (MYBYTE*)token.raw);
+					token.bytes = token.vp - (MYBYTE*)token.raw;
 
  					if (cfig.replication == 2)
 						_beginthread(sendToken, 0, 0);
@@ -10013,52 +9719,52 @@ void __cdecl init(void *lpParam)
 		}
 
 		if (cfig.lease >= INT_MAX)
-			sprintf_s(logBuff, sizeof(logBuff), "Default Lease: Infinity");
+			sprintf(logBuff, "Default Lease: Infinity");
 		else
-			sprintf_s(logBuff, sizeof(logBuff), "Default Lease: %u (sec)", cfig.lease);
+			sprintf(logBuff, "Default Lease: %u (sec)", cfig.lease);
 
 		logDHCPMess(logBuff, 1);
 	}
 
 	if (cfig.replication == 1)
-		sprintf_s(logBuff, sizeof(logBuff), "Server Name: %s (Primary)", cfig.servername);
+		sprintf(logBuff, "Server Name: %s (Primary)", cfig.servername);
 	else if (cfig.replication == 2)
-		sprintf_s(logBuff, sizeof(logBuff), "Server Name: %s (Secondary)", cfig.servername);
+		sprintf(logBuff, "Server Name: %s (Secondary)", cfig.servername);
 	else
-		sprintf_s(logBuff, sizeof(logBuff), "Server Name: %s", cfig.servername);
+		sprintf(logBuff, "Server Name: %s", cfig.servername);
 
 	logDNSMess(logBuff, 1);
 
 	if (dnsService)
 	{
 		if (cfig.authorized)
-			sprintf_s(logBuff, sizeof(logBuff), "Authority for Zone: %s (%s)", cfig.zone, cfig.authority);
+			sprintf(logBuff, "Authority for Zone: %s (%s)", cfig.zone, cfig.authority);
 		else
-			sprintf_s(logBuff, sizeof(logBuff), "Domain Name: %s", cfig.zone);
+			sprintf(logBuff, "Domain Name: %s", cfig.zone);
 
 		logDNSMess(logBuff, 1);
 
 		if (cfig.lease >= INT_MAX)
-			sprintf_s(logBuff, sizeof(logBuff), "Default Host Expiry: Infinity");
+			sprintf(logBuff, "Default Host Expiry: Infinity");
 		else
-			sprintf_s(logBuff, sizeof(logBuff), "Default Host Expiry: %u (sec)", cfig.lease);
+			sprintf(logBuff, "Default Host Expiry: %u (sec)", cfig.lease);
 
 		logDNSMess(logBuff, 1);
 
 		if (cfig.replication)
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "Refresh: %u (sec)", cfig.refresh);
+			sprintf(logBuff, "Refresh: %u (sec)", cfig.refresh);
 			logDNSMess(logBuff, 1);
-			sprintf_s(logBuff, sizeof(logBuff), "Retry: %u (sec)", cfig.retry);
+			sprintf(logBuff, "Retry: %u (sec)", cfig.retry);
 			logDNSMess(logBuff, 1);
 
 			if (cfig.expire == UINT_MAX)
-				sprintf_s(logBuff, sizeof(logBuff), "Expire: Infinity");
+				sprintf(logBuff, "Expire: Infinity");
 			else
-				sprintf_s(logBuff, sizeof(logBuff), "Expire: %u (sec)", cfig.expire);
+				sprintf(logBuff, "Expire: %u (sec)", cfig.expire);
 
 			logDNSMess(logBuff, 1);
-			sprintf_s(logBuff, sizeof(logBuff), "Min: %u (sec)", cfig.minimum);
+			sprintf(logBuff, "Min: %u (sec)", cfig.minimum);
 			logDNSMess(logBuff, 1);
 		}
 
@@ -10067,47 +9773,45 @@ void __cdecl init(void *lpParam)
 			char temp[256];
 
 			if (!cfig.dnsRoutes[i].dns[1])
-				sprintf_s(logBuff, sizeof(logBuff), "Conditional Forwarder: %s for %s", IP2String(ipbuff, sizeof(ipbuff), cfig.dnsRoutes[i].dns[0]), cfig.dnsRoutes[i].zone);
+				sprintf(logBuff, "Conditional Forwarder: %s for %s", IP2String(ipbuff, cfig.dnsRoutes[i].dns[0]), cfig.dnsRoutes[i].zone);
 			else
-				sprintf_s(logBuff, sizeof(logBuff), "Conditional Forwarder: %s, %s for %s", IP2String(temp, sizeof(temp), cfig.dnsRoutes[i].dns[0]), IP2String(ipbuff, sizeof(ipbuff), cfig.dnsRoutes[i].dns[1]), cfig.dnsRoutes[i].zone);
+				sprintf(logBuff, "Conditional Forwarder: %s, %s for %s", IP2String(temp, cfig.dnsRoutes[i].dns[0]), IP2String(ipbuff, cfig.dnsRoutes[i].dns[1]), cfig.dnsRoutes[i].zone);
 
 			logDNSMess(logBuff, 1);
 		}
 
 		for (int i = 0; i < MAX_SERVERS && network.dns[i]; i++)
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "Default Forwarding Server: %s", IP2String(ipbuff, sizeof(ipbuff), network.dns[i]));
+			sprintf(logBuff, "Default Forwarding Server: %s", IP2String(ipbuff, network.dns[i]));
 			logDNSMess(logBuff, 1);
 		}
 
 		//char temp[128];
 
-		for (int i = 0; i < MAX_DNS_RANGES && cfig.dnsRanges[i].rangeStart; i++)
+		for (int i = 0; i <= MAX_DNS_RANGES && cfig.dnsRanges[i].rangeStart; i++)
 		{
 			char *logPtr = logBuff;
-			logPtr += sprintf_s(logPtr,sizeof(logPtr), "%s", "DNS Service Permitted Hosts: ");
-			logPtr += sprintf_s(logPtr,sizeof(logPtr), "%s-", IP2String(ipbuff, sizeof(ipbuff), htonl(cfig.dnsRanges[i].rangeStart)));
-			logPtr += sprintf_s(logPtr,sizeof(logPtr), "%s", IP2String(ipbuff, sizeof(ipbuff), htonl(cfig.dnsRanges[i].rangeEnd)));
+			logPtr += sprintf(logPtr, "%s", "DNS Service Permitted Hosts: ");
+			logPtr += sprintf(logPtr, "%s-", IP2String(ipbuff, htonl(cfig.dnsRanges[i].rangeStart)));
+			logPtr += sprintf(logPtr, "%s", IP2String(ipbuff, htonl(cfig.dnsRanges[i].rangeEnd)));
 			logDNSMess(logBuff, 1);
 		}
 	}
 	else
 	{
-		sprintf_s(logBuff, sizeof(logBuff), "Domain Name: %s", cfig.zone);
+		sprintf(logBuff, "Domain Name: %s", cfig.zone);
 		logDNSMess(logBuff, 1);
 	}
 
-	sprintf_s(logBuff, sizeof(logBuff), "Detecting Static Interfaces..");
+	sprintf(logBuff, "Detecting Static Interfaces..");
 	logMess(logBuff, 1);
 
 	do
 	{
 		closeConn();
 		getInterfaces(&network);
-		getHostPhysAddresses();
 
-		network.maxFD = cfig.dhcpReplConn.sock;
-
+		network.maxFD = 0;
 		bool bindfailed = false;
 
 		if (dhcpService)
@@ -10121,7 +9825,7 @@ void __cdecl init(void *lpParam)
 				if (network.dhcpConn[i].sock == INVALID_SOCKET)
 				{
 					bindfailed = true;
-					sprintf_s(logBuff, sizeof(logBuff), "Failed to Create Socket");
+					sprintf(logBuff, "Failed to Create Socket");
 					logDHCPMess(logBuff, 1);
 					continue;
 				}
@@ -10130,15 +9834,11 @@ void __cdecl init(void *lpParam)
 
 				network.dhcpConn[i].addr.sin_family = AF_INET;
 				network.dhcpConn[i].addr.sin_addr.s_addr = network.listenServers[j];
-				network.dhcpConn[i].addr.sin_port = htons(dhcpServerPort);
+				network.dhcpConn[i].addr.sin_port = htons(IPPORT_DHCPS);
 
 				network.dhcpConn[i].broadCastVal = TRUE;
 				network.dhcpConn[i].broadCastSize = sizeof(network.dhcpConn[i].broadCastVal);
-				if (SOCKET_ERROR == setsockopt(network.dhcpConn[i].sock, SOL_SOCKET, SO_BROADCAST, (char*)(&network.dhcpConn[i].broadCastVal), network.dhcpConn[i].broadCastSize))
-				{
-					sprintf_s(logBuff, sizeof(logBuff), "Failed to set SO_BROADCAST on socket");
-					logDHCPMess(logBuff, 1);
-				}
+				setsockopt(network.dhcpConn[i].sock, SOL_SOCKET, SO_BROADCAST, (char*)(&network.dhcpConn[i].broadCastVal), network.dhcpConn[i].broadCastSize);
 
 				int nRet = bind(network.dhcpConn[i].sock,
 								(sockaddr*)&network.dhcpConn[i].addr,
@@ -10149,7 +9849,7 @@ void __cdecl init(void *lpParam)
 				{
 					bindfailed = true;
 					closesocket(network.dhcpConn[i].sock);
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: %s UDP Port 67 already in use", IP2String(ipbuff, sizeof(ipbuff), network.listenServers[j]));
+					sprintf(logBuff, "Warning: %s UDP Port 67 already in use", IP2String(ipbuff, network.listenServers[j]));
 					logDHCPMess(logBuff, 1);
 					continue;
 				}
@@ -10162,15 +9862,15 @@ void __cdecl init(void *lpParam)
 
 				network.dhcpConn[i].server = network.listenServers[j];
 				network.dhcpConn[i].mask = network.listenMasks[j];
-				network.dhcpConn[i].port = dhcpServerPort;
+				network.dhcpConn[i].port = IPPORT_DHCPS;
 
 				i++;
 			}
 
 			network.httpConn.port = 6789;
-			inet_pton(AF_INET, "127.0.0.1", &(network.httpConn.server));
+			network.httpConn.server = inet_addr("127.0.0.1");
 
-			if ((f = openSection("HTTP_INTERFACE", 1)))
+			if (f = openSection("HTTP_INTERFACE", 1))
 			{
 				while (readSection(raw, f))
 				{
@@ -10182,12 +9882,12 @@ void __cdecl init(void *lpParam)
 
 						if (isIP(name))
 						{
-							inet_pton(AF_INET, name, &(network.httpConn.server));
+							network.httpConn.server = inet_addr(name);
 						}
 						else
 						{
 							network.httpConn.loaded = false;
-							sprintf_s(logBuff, sizeof(logBuff), "Warning: Section [HTTP_INTERFACE], Invalid IP Address %s, ignored", name);
+							sprintf(logBuff, "Warning: Section [HTTP_INTERFACE], Invalid IP Address %s, ignored", name);
 							logDHCPMess(logBuff, 1);
 						}
 
@@ -10198,70 +9898,56 @@ void __cdecl init(void *lpParam)
 							else
 							{
 								network.httpConn.loaded = false;
-								sprintf_s(logBuff, sizeof(logBuff), "Warning: Section [HTTP_INTERFACE], Invalid port %s, ignored", value);
+								sprintf(logBuff, "Warning: Section [HTTP_INTERFACE], Invalid port %s, ignored", value);
 								logDHCPMess(logBuff, 1);
 							}
 						}
 
-						unsigned __int32 ipTmp;
-						inet_pton(AF_INET, "127.0.0.1", &ipTmp);
-						if (network.httpConn.server != ipTmp && !findServer(network.allServers, MAX_SERVERS, network.httpConn.server))
+						if (network.httpConn.server != inet_addr("127.0.0.1") && !findServer(network.allServers, MAX_SERVERS, network.httpConn.server))
 						{
 							bindfailed = true;
 							network.httpConn.loaded = false;
-							sprintf_s(logBuff, sizeof(logBuff), "Warning: Section [HTTP_INTERFACE], %s not available, ignored", raw);
+							sprintf(logBuff, "Warning: Section [HTTP_INTERFACE], %s not available, ignored", raw);
 							logDHCPMess(logBuff, 1);
 						}
 					}
 					else if (!strcasecmp(name, "HTTPClient"))
 					{
 						if (isIP(value))
-						{
-							unsigned __int32 ipTmp;
-							inet_pton(AF_INET, value, &ipTmp);
-							addServer(cfig.httpClients, 8, ipTmp);
-						}
+							addServer(cfig.httpClients, 8, inet_addr(value));
 						else
 						{
-							sprintf_s(logBuff, sizeof(logBuff), "Warning: Section [HTTP_INTERFACE], invalid client IP %s, ignored", raw);
+							sprintf(logBuff, "Warning: Section [HTTP_INTERFACE], invalid client IP %s, ignored", raw);
 							logDHCPMess(logBuff, 1);
 						}
 					}
 					else if (!strcasecmp(name, "HTTPTitle"))
 					{
-						strncpy_s(htmlTitle,sizeof(htmlTitle), value, 255);
+						strncpy(htmlTitle, value, 255);
 						htmlTitle[255] = 0;
 					}
 					else
 					{
-						sprintf_s(logBuff, sizeof(logBuff), "Warning: Section [HTTP_INTERFACE], invalid entry %s, ignored", raw);
+						sprintf(logBuff, "Warning: Section [HTTP_INTERFACE], invalid entry %s, ignored", raw);
 						logDHCPMess(logBuff, 1);
 					}
 				}
 			}
 
 			if (!htmlTitle[0])
-				sprintf_s(htmlTitle,sizeof(htmlTitle), "Dual Server on %s", cfig.servername);
+				sprintf(htmlTitle, "Dual Server on %s", cfig.servername);
 
 			network.httpConn.sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
 			if (network.httpConn.sock == INVALID_SOCKET)
 			{
 				bindfailed = true;
-				sprintf_s(logBuff, sizeof(logBuff), "Failed to Create Socket");
+				sprintf(logBuff, "Failed to Create Socket");
 				logDHCPMess(logBuff, 1);
 			}
 			else
 			{
 				//printf("Socket %u\n", network.httpConn.sock);
-
-				BOOL bOptVal = TRUE;
-				int bOptLen = sizeof(BOOL);
-				if (SOCKET_ERROR == setsockopt(network.httpConn.sock, SOL_SOCKET, SO_REUSEADDR, (char*)&bOptVal, bOptLen))
-				{
-					sprintf_s(logBuff, sizeof(logBuff), "Failed to set SO_REUSEADDR");
-					logDHCPMess(logBuff, 1);
-				}
 
 				network.httpConn.addr.sin_family = AF_INET;
 				network.httpConn.addr.sin_addr.s_addr = network.httpConn.server;
@@ -10272,7 +9958,7 @@ void __cdecl init(void *lpParam)
 				if (nRet == SOCKET_ERROR)
 				{
 					bindfailed = true;
-					sprintf_s(logBuff, sizeof(logBuff), "Http Interface %s TCP Port %u not available", IP2String(ipbuff, sizeof(ipbuff), network.httpConn.server), network.httpConn.port);
+					sprintf(logBuff, "Http Interface %s TCP Port %u not available", IP2String(ipbuff, network.httpConn.server), network.httpConn.port);
 					logDHCPMess(logBuff, 1);
 					closesocket(network.httpConn.sock);
 				}
@@ -10283,7 +9969,7 @@ void __cdecl init(void *lpParam)
 					if (nRet == SOCKET_ERROR)
 					{
 						bindfailed = true;
-						sprintf_s(logBuff, sizeof(logBuff), "%s TCP Port %u Error on Listen", IP2String(ipbuff, sizeof(ipbuff), network.httpConn.server), network.httpConn.port);
+						sprintf(logBuff, "%s TCP Port %u Error on Listen", IP2String(ipbuff, network.httpConn.server), network.httpConn.port);
 						logDHCPMess(logBuff, 1);
 						closesocket(network.httpConn.sock);
 					}
@@ -10301,6 +9987,37 @@ void __cdecl init(void *lpParam)
 
 		if (dnsService)
 		{
+			if (cfig.replication != 2)
+			{
+				hostMap::iterator p = dnsCache[0].begin();
+				hostMap::iterator q;
+				data7 *cache = NULL;
+
+				while (p != dnsCache[0].end())
+				{
+					if ((cache = p->second) && (cache->cType == CTYPE_SERVER_A_AUTH || cache->cType == CTYPE_SERVER_PTR_AUTH || cache->cType == CTYPE_SERVER_PTR_NAUTH))
+					{
+						q = p;
+						p++;
+						dnsCache[0].erase(q);
+						free(cache);
+					}
+					else
+						p++;
+				}
+
+				char localhost[] = "localhost";
+				add2Cache(localhost, inet_addr("127.0.0.1"), INT_MAX, CTYPE_LOCALHOST_A, CTYPE_LOCALHOST_PTR);
+
+				for (int i = 0; i < MAX_SERVERS && network.listenServers[i]; i++)
+				{
+					if (isLocal(network.listenServers[i]))
+						add2Cache(cfig.servername, network.listenServers[i], INT_MAX, CTYPE_SERVER_A_AUTH, CTYPE_SERVER_PTR_AUTH);
+					else
+						add2Cache(cfig.servername, network.listenServers[i], INT_MAX, CTYPE_SERVER_A_AUTH, CTYPE_SERVER_PTR_NAUTH);
+				}
+			}
+
 			int i = 0;
 
 			for (int j = 0; j < MAX_SERVERS && network.listenServers[j]; j++)
@@ -10310,7 +10027,7 @@ void __cdecl init(void *lpParam)
 				if (network.dnsUdpConn[i].sock == INVALID_SOCKET)
 				{
 					bindfailed = true;
-					sprintf_s(logBuff, sizeof(logBuff), "Failed to Create Socket");
+					sprintf(logBuff, "Failed to Create Socket");
 					logDNSMess(logBuff, 1);
 					continue;
 				}
@@ -10319,7 +10036,7 @@ void __cdecl init(void *lpParam)
 
 				network.dnsUdpConn[i].addr.sin_family = AF_INET;
 				network.dnsUdpConn[i].addr.sin_addr.s_addr = network.listenServers[j];
-				network.dnsUdpConn[i].addr.sin_port = htons(dnsPort);
+				network.dnsUdpConn[i].addr.sin_port = htons(IPPORT_DNS);
 
 				int nRet = bind(network.dnsUdpConn[i].sock,
 								(sockaddr*)&network.dnsUdpConn[i].addr,
@@ -10330,7 +10047,7 @@ void __cdecl init(void *lpParam)
 				{
 					bindfailed = true;
 					closesocket(network.dnsUdpConn[i].sock);
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: %s UDP Port %u already in use", IP2String(ipbuff, sizeof(ipbuff), network.listenServers[j]),dnsPort);
+					sprintf(logBuff, "Warning: %s UDP Port 53 already in use", IP2String(ipbuff, network.listenServers[j]));
 					logDNSMess(logBuff, 1);
 					continue;
 				}
@@ -10342,7 +10059,7 @@ void __cdecl init(void *lpParam)
 					network.maxFD = network.dnsUdpConn[i].sock;
 
 				network.dnsUdpConn[i].server = network.listenServers[j];
-				network.dnsUdpConn[i].port = dnsPort;
+				network.dnsUdpConn[i].port = IPPORT_DNS;
 
 				i++;
 			}
@@ -10352,14 +10069,19 @@ void __cdecl init(void *lpParam)
 			if (network.forwConn.sock == INVALID_SOCKET)
 			{
 				bindfailed = true;
-				sprintf_s(logBuff, sizeof(logBuff), "Failed to Create Socket");
+				sprintf(logBuff, "Failed to Create Socket");
 				logDNSMess(logBuff, 1);
 			}
 			else
 			{
+				int val = 0;
+				setsockopt(network.forwConn.sock, IPPROTO_IP, IP_DONTFRAGMENT, (const char*)&val, sizeof(val));
+				//int val = IP_PMTUDISC_DONT;
+				//setsockopt(network.forwConn.sock, IPPROTO_IP, IP_PMTUDISC_DONT, &val, sizeof(val));
+
 				network.forwConn.addr.sin_family = AF_INET;
 				network.forwConn.server = network.dns[0];
-				network.forwConn.port = dnsPort;
+				network.forwConn.port = IPPORT_DNS;
 				//bind(network.forwConn.sock, (sockaddr*)&network.forwConn.addr, sizeof(struct sockaddr_in));
 
 				network.forwConn.loaded = true;
@@ -10378,7 +10100,7 @@ void __cdecl init(void *lpParam)
 				if (network.dnsTcpConn[i].sock == INVALID_SOCKET)
 				{
 					bindfailed = true;
-					sprintf_s(logBuff, sizeof(logBuff), "Failed to Create Socket");
+					sprintf(logBuff, "Failed to Create Socket");
 					logDNSMess(logBuff, 1);
 				}
 				else
@@ -10386,7 +10108,7 @@ void __cdecl init(void *lpParam)
 					//printf("Socket %u\n", network.dnsTcpConn[i].sock);
 					network.dnsTcpConn[i].addr.sin_family = AF_INET;
 					network.dnsTcpConn[i].addr.sin_addr.s_addr = network.listenServers[j];
-					network.dnsTcpConn[i].addr.sin_port = htons(dnsPort);
+					network.dnsTcpConn[i].addr.sin_port = htons(IPPORT_DNS);
 
 					int nRet = bind(network.dnsTcpConn[i].sock,
 									(sockaddr*)&network.dnsTcpConn[i].addr,
@@ -10396,7 +10118,7 @@ void __cdecl init(void *lpParam)
 					{
 						bindfailed = true;
 						closesocket(network.dnsTcpConn[i].sock);
-						sprintf_s(logBuff, sizeof(logBuff), "Warning: %s TCP Port %u already in use", IP2String(ipbuff, sizeof(ipbuff), network.listenServers[j]), dnsPort);
+						sprintf(logBuff, "Warning: %s TCP Port 53 already in use", IP2String(ipbuff, network.listenServers[j]));
 						logDNSMess(logBuff, 1);
 					}
 					else
@@ -10406,13 +10128,13 @@ void __cdecl init(void *lpParam)
 						if (nRet == SOCKET_ERROR)
 						{
 							closesocket(network.dnsTcpConn[i].sock);
-							sprintf_s(logBuff, sizeof(logBuff), "TCP Port %u Error on Listen",dnsPort);
+							sprintf(logBuff, "TCP Port 53 Error on Listen");
 							logDNSMess(logBuff, 1);
 						}
 						else
 						{
 							network.dnsTcpConn[i].server = network.listenServers[j];
-							network.dnsTcpConn[i].port = dnsPort;
+							network.dnsTcpConn[i].port = IPPORT_DNS;
 
 							network.dnsTcpConn[i].loaded = true;
 							network.dnsTcpConn[i].ready = true;
@@ -10447,28 +10169,28 @@ void __cdecl init(void *lpParam)
 
 		if ((dhcpService && !network.dhcpConn[0].ready) || (dnsService && !(network.dnsUdpConn[0].ready && network.dnsTcpConn[0].ready)))
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "No Static Interface ready, Waiting...");
+			sprintf(logBuff, "No Static Interface ready, Waiting...");
 			logMess(logBuff, 1);
 			continue;
 		}
 
 		if (dhcpService && network.httpConn.ready)
 		{
-			sprintf_s(logBuff, sizeof(logBuff), "Lease Status URL: http://%s:%u", IP2String(ipbuff, sizeof(ipbuff), network.httpConn.server), network.httpConn.port);
+			sprintf(logBuff, "Lease Status URL: http://%s:%u", IP2String(ipbuff, network.httpConn.server), network.httpConn.port);
 			logDHCPMess(logBuff, 1);
-			FILE *f;
+			FILE *f = fopen(htmFile, "wt");
 
-			if (0== fopen_s(&f,htmFile, "wt"))
+			if (f)
 			{
-				fprintf(f, "<html><head><meta http-equiv=\"refresh\" content=\"0;url=http://%s:%u\"</head></html>", IP2String(ipbuff, sizeof(ipbuff), network.httpConn.server), network.httpConn.port);
+				fprintf(f, "<html><head><meta http-equiv=\"refresh\" content=\"0;url=http://%s:%u\"</head></html>", IP2String(ipbuff, network.httpConn.server), network.httpConn.port);
 				fclose(f);
 			}
 		}
 		else
 		{
-			FILE *f;
+			FILE *f = fopen(htmFile, "wt");
 
-			if (0== fopen_s(&f,htmFile, "wt"))
+			if (f)
 			{
 				fprintf(f, "<html><body><h2>DHCP/HTTP Service is not running</h2></body></html>");
 				fclose(f);
@@ -10481,7 +10203,7 @@ void __cdecl init(void *lpParam)
 			{
 				if (network.dhcpConn[j].server == network.staticServers[i] || network.dnsUdpConn[j].server == network.staticServers[i])
 				{
-					sprintf_s(logBuff, sizeof(logBuff), "Listening On: %s", IP2String(ipbuff, sizeof(ipbuff), network.staticServers[i]));
+					sprintf(logBuff, "Listening On: %s", IP2String(ipbuff, network.staticServers[i]));
 					logMess(logBuff, 1);
 					break;
 				}
@@ -10505,7 +10227,7 @@ bool detectChange()
 	{
 		MYDWORD eventWait = (MYDWORD)(10000 * pow(2, cfig.failureCount));
 		Sleep(eventWait);
-		sprintf_s(logBuff, sizeof(logBuff), "Retrying failed Listening Interfaces..");
+		sprintf(logBuff, "Retrying failed Listening Interfaces..");
 		logDHCPMess(logBuff, 1);
 		network.ready = false;
 
@@ -10515,20 +10237,16 @@ bool detectChange()
 		return true;
 	}
 
-	DWORD err = NotifyAddrChange(NULL, NULL);
-	if (NO_ERROR != err)
-	{
-		errno = err;
+	DWORD ret = NotifyAddrChange(NULL, NULL);
 
-		if (errno != WSA_IO_PENDING)
-		{
-			sprintf_s(logBuff, sizeof(logBuff), "NotifyAddrChange error...%d", errno);
-			logDHCPMess(logBuff, 1);
-		}
+	if ((errno = WSAGetLastError()) && errno != WSA_IO_PENDING)
+	{
+		sprintf(logBuff, "NotifyAddrChange error...%d", errno);
+		logDHCPMess(logBuff, 1);
 	}
 
 	Sleep(1000);
-	sprintf_s(logBuff, sizeof(logBuff), "Network changed, re-detecting Static Interfaces..");
+	sprintf(logBuff, "Network changed, re-detecting Static Interfaces..");
 	logDHCPMess(logBuff, 1);
 	network.ready = false;
 
@@ -10538,57 +10256,6 @@ bool detectChange()
 	return true;
 }
 
-#define MALLOC(x) HeapAlloc(GetProcessHeap(), 0, (x))
-#define FREE(x) HeapFree(GetProcessHeap(), 0, (x))
-void getHostPhysAddresses()
-{
-	for (int i = 0; i < MAX_SERVERS; i++)
-	{
-		memset(hostPhysAddress[i], 0, 8 * sizeof(byte));
-	}
-
-	/* Declare and initialize variables */
-
-	// It is possible for an adapter to have multiple
-	// IPv4 addresses, gateways, and secondary WINS servers
-	// assigned to the adapter.
-	//
-	// Note that this sample code only prints out the
-	// first entry for the IP address/mask, and gateway, and
-	// the primary and secondary WINS server for each adapter.
-
-	PIP_ADAPTER_INFO pAdapterInfo;
-	PIP_ADAPTER_INFO pAdapter = NULL;
-	DWORD dwRetVal = 0;
-	UINT i = 0;
-
-	ULONG ulOutBufLen = sizeof(IP_ADAPTER_INFO);
-	pAdapterInfo = (IP_ADAPTER_INFO *)MALLOC(sizeof(IP_ADAPTER_INFO));
-	if (pAdapterInfo == NULL) {
-		return;
-	}
-	// Make an initial call to GetAdaptersInfo to get
-	// the necessary size into the ulOutBufLen variable
-	if (GetAdaptersInfo(pAdapterInfo, &ulOutBufLen) == ERROR_BUFFER_OVERFLOW) {
-		FREE(pAdapterInfo);
-		pAdapterInfo = (IP_ADAPTER_INFO *)MALLOC(ulOutBufLen);
-		if (pAdapterInfo == NULL) {
-			return;
-		}
-	}
-
-	if ((dwRetVal = GetAdaptersInfo(pAdapterInfo, &ulOutBufLen)) == NO_ERROR) {
-		pAdapter = pAdapterInfo;
-		while (pAdapter) {
-			memcpy(hostPhysAddress[i], pAdapter->Address, 8);
-			i++;
-			pAdapter = pAdapter->Next;
-		}
-	}
-	if (pAdapterInfo)
-		FREE(pAdapterInfo);
-}
-
 void getInterfaces(data1 *network)
 {
 	char logBuff[512];
@@ -10596,7 +10263,7 @@ void getInterfaces(data1 *network)
 
 	memset(network, 0, sizeof(data1));
 
-	SOCKET sd = WSASocketW(PF_INET, SOCK_DGRAM, 0, 0, 0, 0);
+	SOCKET sd = WSASocket(PF_INET, SOCK_DGRAM, 0, 0, 0, 0);
 
 	if (sd == INVALID_SOCKET)
 		return;
@@ -10626,58 +10293,53 @@ void getInterfaces(data1 *network)
 	PIP_ADAPTER_INFO pAdapterInfo;
 	PIP_ADAPTER_INFO pAdapter;
 
-	pAdapterInfo = (IP_ADAPTER_INFO*) calloc(sizeof(char), sizeof(IP_ADAPTER_INFO));
+	pAdapterInfo = (IP_ADAPTER_INFO*) calloc(1, sizeof(IP_ADAPTER_INFO));
 	DWORD ulOutBufLen = sizeof(IP_ADAPTER_INFO);
 
-	if (pAdapterInfo && GetAdaptersInfo(pAdapterInfo, &ulOutBufLen) == ERROR_BUFFER_OVERFLOW)
+	if (GetAdaptersInfo(pAdapterInfo, &ulOutBufLen) == ERROR_BUFFER_OVERFLOW)
 	{
 		free(pAdapterInfo);
-		pAdapterInfo = (IP_ADAPTER_INFO*)calloc(sizeof(char), ulOutBufLen);
+		pAdapterInfo = (IP_ADAPTER_INFO*)calloc(1, ulOutBufLen);
 	}
 
-	if (pAdapterInfo)
+	if ((GetAdaptersInfo(pAdapterInfo, &ulOutBufLen)) == NO_ERROR)
 	{
-		if ((GetAdaptersInfo(pAdapterInfo, &ulOutBufLen)) == NO_ERROR)
+		pAdapter = pAdapterInfo;
+		while (pAdapter)
 		{
-			pAdapter = pAdapterInfo;
-			while (pAdapter)
+			if (!pAdapter->DhcpEnabled)
 			{
-				if (!pAdapter->DhcpEnabled)
+				IP_ADDR_STRING *sList = &pAdapter->IpAddressList;
+				while (sList)
 				{
-					IP_ADDR_STRING *sList = &pAdapter->IpAddressList;
-					while (sList)
-					{
-						MYDWORD iaddr;
-						inet_pton(AF_INET, sList->IpAddress.String, &iaddr);
+					MYDWORD iaddr = inet_addr(sList->IpAddress.String);
 
-						if (iaddr)
+					if (iaddr)
+					{
+						for (MYBYTE k = 0; k < MAX_SERVERS; k++)
 						{
-							for (MYBYTE k = 0; k < MAX_SERVERS; k++)
+							if (network->staticServers[k] == iaddr)
+								break;
+							else if (!network->staticServers[k])
 							{
-								if (network->staticServers[k] == iaddr)
-									break;
-								else if (!network->staticServers[k])
-								{
-									network->staticServers[k] = iaddr;
-									inet_pton(AF_INET, sList->IpMask.String, &network->staticMasks[k]);
-									break;
-								}
+								network->staticServers[k] = iaddr;
+								network->staticMasks[k] = inet_addr(sList->IpMask.String);
+								break;
 							}
 						}
-						sList = sList->Next;
 					}
-
-					//				IP_ADDR_STRING *rList = &pAdapter->GatewayList;
-					//				while (rList)
-					//				{
-					//					MYDWORD trouter;
-					//					inet_pton(AF_INET,rList->IpAddress.String,&trouter);
-					//					addServer(cfig.routers, trouter);
-					//					rList = rList->Next;
-					//				}
+					sList = sList->Next;
 				}
-				pAdapter = pAdapter->Next;
+
+//				IP_ADDR_STRING *rList = &pAdapter->GatewayList;
+//				while (rList)
+//				{
+//					MYDWORD trouter = inet_addr(rList->IpAddress.String);
+//					addServer(cfig.routers, trouter);
+//					rList = rList->Next;
+//				}
 			}
+			pAdapter = pAdapter->Next;
 		}
 		free(pAdapterInfo);
 	}
@@ -10704,9 +10366,9 @@ void getInterfaces(data1 *network)
 			if (j == MAX_SERVERS || !network->staticServers[j])
 			{
 				if (findServer(network->allServers, MAX_SERVERS, cfig.specifiedServers[i]))
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: Section [LISTEN_ON] Interface %s is not static, ignored", IP2String(ipbuff, sizeof(ipbuff), cfig.specifiedServers[i]));
+					sprintf(logBuff, "Warning: Section [LISTEN_ON] Interface %s is not static, ignored", IP2String(ipbuff, cfig.specifiedServers[i]));
 				else
-					sprintf_s(logBuff, sizeof(logBuff), "Warning: Section [LISTEN_ON] Interface %s is not found, ignored", IP2String(ipbuff, sizeof(ipbuff), cfig.specifiedServers[i]));
+					sprintf(logBuff, "Warning: Section [LISTEN_ON] Interface %s is not found, ignored", IP2String(ipbuff, cfig.specifiedServers[i]));
 
 				logMess(logBuff, 2);
 			}
@@ -10733,7 +10395,7 @@ void getInterfaces(data1 *network)
 
 			if (j == MAX_SERVERS || !network->staticServers[j])
 			{
-				sprintf_s(logBuff, sizeof(logBuff), "Warning: Interface %s is not Static, ignored", IP2String(ipbuff, sizeof(ipbuff), network->allServers[i]));
+				sprintf(logBuff, "Warning: Interface %s is not Static, ignored", IP2String(ipbuff, network->allServers[i]));
 				logMess(logBuff, 2);
 			}
 		}
@@ -10745,46 +10407,43 @@ void getInterfaces(data1 *network)
 	FixedInfo = (FIXED_INFO*)GlobalAlloc(GPTR, sizeof(FIXED_INFO));
 	ulOutBufLen = sizeof(FIXED_INFO);
 
-	if (FixedInfo && ERROR_BUFFER_OVERFLOW == GetNetworkParams(FixedInfo, &ulOutBufLen))
+	if (ERROR_BUFFER_OVERFLOW == GetNetworkParams(FixedInfo, &ulOutBufLen))
 	{
 		GlobalFree(FixedInfo);
 		FixedInfo = (FIXED_INFO*)GlobalAlloc(GPTR, ulOutBufLen);
 	}
-	if (FixedInfo)
+
+	if (!GetNetworkParams(FixedInfo, &ulOutBufLen))
 	{
-		if (!GetNetworkParams(FixedInfo, &ulOutBufLen))
+		if (!cfig.servername[0])
+			strcpy(cfig.servername, FixedInfo->HostName);
+
+		//printf("d=%u=%s", strlen(FixedInfo->DomainName), FixedInfo->DomainName);
+
+		if (!cfig.zone[0])
 		{
-			if (!cfig.servername[0])
-				strcpy_s(cfig.servername, sizeof(cfig.servername), FixedInfo->HostName);
+			strcpy(cfig.zone, FixedInfo->DomainName);
+			cfig.zLen = strlen(cfig.zone);
+		}
 
-			//printf("d=%u=%s", strlen(FixedInfo->DomainName), FixedInfo->DomainName);
+		if (!cfig.zone[0] || cfig.zone[0] == NBSP)
+		{
+			strcpy(cfig.zone, "workgroup");
+			cfig.zLen = strlen(cfig.zone);
+		}
 
-			if (!cfig.zone[0])
+		if (!cfig.specifiedDnsServers[0])
+		{
+			pIPAddr = &FixedInfo->DnsServerList;
+
+			while (pIPAddr)
 			{
-				strcpy_s(cfig.zone, sizeof(cfig.zone), FixedInfo->DomainName);
-				cfig.zLen = (unsigned char)strlen(cfig.zone);
-			}
+				MYDWORD addr = inet_addr(pIPAddr->IpAddress.String);
 
-			if (!cfig.zone[0] || cfig.zone[0] == NBSP)
-			{
-				strcpy_s(cfig.zone, sizeof(cfig.zone), "workgroup");
-				cfig.zLen = (unsigned char)strlen(cfig.zone);
-			}
+				if (!dnsService || !findServer(network->allServers, MAX_SERVERS, addr))
+					addServer(network->dns, MAX_SERVERS, addr);
 
-			if (!cfig.specifiedDnsServers[0])
-			{
-				pIPAddr = &FixedInfo->DnsServerList;
-
-				while (pIPAddr)
-				{
-					MYDWORD addr;
-					inet_pton(AF_INET, pIPAddr->IpAddress.String, &addr);
-
-					if (!dnsService || !findServer(network->allServers, MAX_SERVERS, addr))
-						addServer(network->dns, MAX_SERVERS, addr);
-
-					pIPAddr = pIPAddr->Next;
-				}
+				pIPAddr = pIPAddr->Next;
 			}
 		}
 		GlobalFree(FixedInfo);
@@ -10800,42 +10459,35 @@ void getInterfaces(data1 *network)
 
 void __cdecl updateStateFile(void *lpParam)
 {
+	WaitForSingleObject(fEvent, INFINITE);
+
 	data7 *dhcpEntry = (data7*)lpParam;
 	data8 dhcpData;
 	memset(&dhcpData, 0, sizeof(data8));
-	dhcpData.bp_hlen = 16;
-	getHexValue(dhcpData.bp_chaddr, dhcpEntry->mapname, &dhcpData.bp_hlen);
+	MYBYTE bp_hlen =  16;
+	getHexValue(dhcpData.bp_chaddr, dhcpEntry->mapname, &bp_hlen);
+	dhcpData.bp_hlen =  bp_hlen;
 	dhcpData.ip = dhcpEntry->ip;
+	dhcpData.subnetFlg = dhcpEntry->subnetFlg;
 	dhcpData.expiry = dhcpEntry->expiry;
 	dhcpData.local = dhcpEntry->local;
-	strcpy_s(dhcpData.hostname, sizeof(dhcpData.hostname), dhcpEntry->hostname);
-	WaitForSingleObject(fEvent, INFINITE);
+	strcpy(dhcpData.hostname, dhcpEntry->hostname);
 
-	if (dhcpEntry->dhcpInd)
+	if (!dhcpEntry->dhcpInd)
 	{
-		dhcpData.dhcpInd = dhcpEntry->dhcpInd;
-		FILE *f;
-
-		if (0== fopen_s(&f,leaFile, "rb+"))
-		{
-			if (fseek(f, (dhcpData.dhcpInd - 1)*sizeof(data8), SEEK_SET) >= 0)
-				fwrite(&dhcpData, sizeof(data8), 1, f);
-
-			fclose(f);
-		}
-	}
-	else
-	{
-		cfig.dhcpInd++;
+		cfig.dhcpInd += 1;
 		dhcpEntry->dhcpInd = cfig.dhcpInd;
-		dhcpData.dhcpInd = cfig.dhcpInd;
-		FILE *f;
+	}
 
-		if (0== fopen_s(&f,leaFile, "ab"))
-		{
+	dhcpData.dhcpInd = dhcpEntry->dhcpInd;
+	FILE *f = fopen(leaFile, "rb+");
+
+	if (f)
+	{
+		if (fseek(f, (dhcpData.dhcpInd - 1)*sizeof(data8), SEEK_SET) >= 0)
 			fwrite(&dhcpData, sizeof(data8), 1, f);
-			fclose(f);
-		}
+
+		fclose(f);
 	}
 
 	SetEvent(fEvent);
@@ -10843,9 +10495,9 @@ void __cdecl updateStateFile(void *lpParam)
 	return;
 }
 
-MYWORD gDHCPMessage(data9 *req, MYBYTE sockInd)
+MYWORD gdmess(data9 *req, MYBYTE sockInd)
 {
-	//debug("gDHCPMessage");
+	//debug("gdmess");
 	char ipbuff[32];
 	char logBuff[512];
 	memset(req, 0, sizeof(data9));
@@ -10854,24 +10506,31 @@ MYWORD gDHCPMessage(data9 *req, MYBYTE sockInd)
 	errno = 0;
 
 	req->bytes = recvfrom(network.dhcpConn[req->sockInd].sock,
-		req->raw,
-		sizeof(req->raw),
-		0,
-		(sockaddr*)&req->remote,
-		&req->sockLen);
+	                      req->raw,
+	                      sizeof(req->raw),
+	                      0,
+	                      (sockaddr*)&req->remote,
+	                      &req->sockLen);
 
-	//printf("IP=%s bytes=%u\n", IP2String(ipbuff, sizeof(ipbuff), req->remote.sin_addr.s_addr), req->bytes);
+	//printf("IP=%s bytes=%u\n", IP2String(ipbuff,req->remote.sin_addr.s_addr), req->bytes);
 
+	errno = WSAGetLastError();
 
 	//printf("errno=%u\n", errno);
 
-	if (req->bytes <= 0 || req->dhcpp.header.bp_op != BOOTP_REQUEST)
+	if (errno || req->bytes <= 0)
 	{
-		errno = WSAGetLastError();
+		sprintf(logBuff, "DHCP Message Recv Failed..");
+		logDHCPMess(logBuff, 1);
 		return 0;
 	}
 
-	hex2String(req->chaddr, sizeof(req->chaddr), req->dhcpp.header.bp_chaddr, req->dhcpp.header.bp_hlen);
+	if (req->dhcpp.header.bp_op != BOOTP_REQUEST)
+		return 0;
+
+	//debug(req->dhcpp.header.bp_broadcast);
+
+	hex2String(req->chaddr, req->dhcpp.header.bp_chaddr, req->dhcpp.header.bp_hlen);
 
 	data3 *op;
 	MYBYTE *raw = req->dhcpp.vend_data;
@@ -10914,14 +10573,9 @@ MYWORD gDHCPMessage(data9 *req, MYBYTE sockInd)
 				break;
 
 			case DHCP_OPTION_HOSTNAME:
-				if (op->size >= MAX_HOSTNAME_STR_SIZE)
-				{
-					printf("DHCP_OPTION_HOSTNAME is too long to copy into the req!\n");
-					op->size = MAX_HOSTNAME_STR_SIZE-1;
-				}
 				memcpy(req->hostname, op->value, op->size);
 				req->hostname[op->size] = 0;
-				req->hostname[MAX_HOSTNAME_STR_SIZE-1] = 0;
+				req->hostname[64] = 0;
 
 				if (char *ptr = strchr(req->hostname, '.'))
 					*ptr = 0;
@@ -10946,11 +10600,11 @@ MYWORD gDHCPMessage(data9 *req, MYBYTE sockInd)
 
 			case DHCP_OPTION_SUBNETSELECTION:
 				memcpy(&req->subnet, op, op->size + 2);
-				req->subnetIP = fULong(op->value);
+				req->subnetIP = fIP(op->value);
 				break;
 
 			case DHCP_OPTION_DNS:
-				req->dns = fULong(op->value);
+				req->dns = fIP(op->value);
 				break;
 
 			case DHCP_OPTION_REBINDINGTIME:
@@ -10962,12 +10616,7 @@ MYWORD gDHCPMessage(data9 *req, MYBYTE sockInd)
 	}
 
 	if (!req->subnetIP)
-	{
-		if (req->dhcpp.header.bp_giaddr)
-			req->subnetIP = req->dhcpp.header.bp_giaddr;
-		else
-			req->subnetIP = network.dhcpConn[req->sockInd].server;
-	}
+		req->subnetIP = req->dhcpp.header.bp_giaddr;
 
 	if (!req->messsize)
 	{
@@ -10979,10 +10628,10 @@ MYWORD gDHCPMessage(data9 *req, MYBYTE sockInd)
 
 //	if (!req->hostname[0] && req->dhcpp.header.bp_ciaddr)
 //	{
-//		data7* cache = findEntry(IP2String(ipbuff, sizeof(ipbuff), htonl(req->dhcpp.header.bp_ciaddr)), DNS_TYPE_PTR);
+//		data7* cache = findEntry(IP2String(ipbuff, htonl(req->dhcpp.header.bp_ciaddr)), DNS_TYPE_PTR);
 //
 //		if (cache)
-//			strcpy_s(req->hostname, sizeof(req->hostname), cache->hostname);
+//			strcpy(req->hostname, cache->hostname);
 //	}
 //
 //	if ((req->req_type == 1 || req->req_type == 3) && cfig.dhcpLogLevel == 3)
@@ -10997,35 +10646,39 @@ MYWORD gDHCPMessage(data9 *req, MYBYTE sockInd)
 		if (req->req_type == DHCP_MESS_NONE)
 		{
 			if (req->dhcpp.header.bp_giaddr)
-				sprintf_s(logBuff, sizeof(logBuff), "BOOTPREQUEST for %s (%s) from RelayAgent %s received", req->chaddr, req->hostname, IP2String(ipbuff, sizeof(ipbuff), req->dhcpp.header.bp_giaddr));
+				sprintf(logBuff, "BOOTPREQUEST for %s (%s) from RelayAgent %s received", req->chaddr, req->hostname, IP2String(ipbuff, req->dhcpp.header.bp_giaddr));
 			else
-				sprintf_s(logBuff, sizeof(logBuff), "BOOTPREQUEST for %s (%s) from interface %s received", req->chaddr, req->hostname, IP2String(ipbuff, sizeof(ipbuff), network.dhcpConn[req->sockInd].server));
+				sprintf(logBuff, "BOOTPREQUEST for %s (%s) from interface %s received", req->chaddr, req->hostname, IP2String(ipbuff, network.dhcpConn[req->sockInd].server));
 
 			logDHCPMess(logBuff, 2);
 		}
 		else if (req->req_type == DHCP_MESS_DISCOVER)
 		{
 			if (req->dhcpp.header.bp_giaddr)
-				sprintf_s(logBuff, sizeof(logBuff), "DHCPDISCOVER for %s (%s) from RelayAgent %s received", req->chaddr, req->hostname, IP2String(ipbuff, sizeof(ipbuff), req->dhcpp.header.bp_giaddr));
+				sprintf(logBuff, "DHCPDISCOVER for %s (%s) from RelayAgent %s received", req->chaddr, req->hostname, IP2String(ipbuff, req->dhcpp.header.bp_giaddr));
 			else
-				sprintf_s(logBuff, sizeof(logBuff), "DHCPDISCOVER for %s (%s) from interface %s received", req->chaddr, req->hostname, IP2String(ipbuff, sizeof(ipbuff), network.dhcpConn[req->sockInd].server));
+				sprintf(logBuff, "DHCPDISCOVER for %s (%s) from interface %s received", req->chaddr, req->hostname, IP2String(ipbuff, network.dhcpConn[req->sockInd].server));
 
 			logDHCPMess(logBuff, 2);
 		}
 		else if (req->req_type == DHCP_MESS_REQUEST)
 		{
-			if (req->dhcpp.header.bp_giaddr)
-				sprintf_s(logBuff, sizeof(logBuff), "DHCPREQUEST for %s (%s) from RelayAgent %s received", req->chaddr, req->hostname, IP2String(ipbuff, sizeof(ipbuff), req->dhcpp.header.bp_giaddr));
-			else
-				sprintf_s(logBuff, sizeof(logBuff), "DHCPREQUEST for %s (%s) from interface %s received", req->chaddr, req->hostname, IP2String(ipbuff, sizeof(ipbuff), network.dhcpConn[req->sockInd].server));
+			if ((!req->server) || req->server == network.dhcpConn[req->sockInd].server)
+			{
+				if (req->dhcpp.header.bp_giaddr)
+					sprintf(logBuff, "DHCPREQUEST for %s (%s) from RelayAgent %s received", req->chaddr, req->hostname, IP2String(ipbuff, req->dhcpp.header.bp_giaddr));
+				else
+					sprintf(logBuff, "DHCPREQUEST for %s (%s) from interface %s received", req->chaddr, req->hostname, IP2String(ipbuff, network.dhcpConn[req->sockInd].server));
 
-			logDHCPMess(logBuff, 2);
+				logDHCPMess(logBuff, 2);
+			}
 		}
 	}
 
 	req->vp = req->dhcpp.vend_data;
 	memset(req->vp, 0, sizeof(dhcp_packet) - sizeof(dhcp_header));
 	//printf("end bytes=%u\n", req->bytes);
+	//debug(req->dhcpp.header.bp_broadcast);
 
 	return 1;
 }
@@ -11033,64 +10686,64 @@ MYWORD gDHCPMessage(data9 *req, MYBYTE sockInd)
 void debug(int i)
 {
 	char t[254];
-	sprintf_s(t,sizeof(t), "%i", i);
+	sprintf(t, "%i", i);
 	logMess(t, 1);
 }
 
 void debug(const char *mess)
 {
 	char t[254];
-	strcpy_s(t,sizeof(t), mess);
+	strcpy(t, mess);
 	logMess(t, 1);
 }
 
 void logDirect(char *mess)
 {
-	tm ttm;
-	localtime_s(&ttm,&t);
+	tm *ttm = localtime(&t);
 	char buffer[_MAX_PATH];
-	strftime(buffer, sizeof(buffer), logFile, &ttm);
+	strftime(buffer, sizeof(buffer), logFile, ttm);
 
 	if (strcmp(cfig.logFileName, buffer))
 	{
 		if (cfig.logFileName[0])
 		{
-			FILE *f;
+			FILE *f = fopen(cfig.logFileName, "at");
 
-			if (0 == fopen_s(&f,cfig.logFileName, "at"))
+			if (f)
 			{
 				fprintf(f, "Logging Continued on file %s\n", buffer);
 				fclose(f);
 			}
 
-			strcpy_s(cfig.logFileName, sizeof(cfig.logFileName), buffer);
+			strcpy(cfig.logFileName, buffer);
+			f = fopen(cfig.logFileName, "at");
 
-			if (0 == fopen_s(&f, cfig.logFileName, "at"))
+			if (f)
 			{
-				fprintf(f, "%s %s\n\n", sVersionName, sVersionNumber);
+				fprintf(f, "%s\n\n", sVersion);
 				fclose(f);
 			}
 		}
 
-		strcpy_s(cfig.logFileName, sizeof(cfig.logFileName), buffer);
+		strcpy(cfig.logFileName, buffer);
 		WritePrivateProfileString("InternetShortcut","URL", buffer, lnkFile);
 		WritePrivateProfileString("InternetShortcut","IconIndex", "0", lnkFile);
 		WritePrivateProfileString("InternetShortcut","IconFile", buffer, lnkFile);
 	}
 
-	FILE *f;
+	FILE *f = fopen(cfig.logFileName, "at");
 
-	if (0== fopen_s(&f,cfig.logFileName, "at"))
+	if (f)
 	{
-		strftime(buffer, sizeof(buffer), "%d-%b-%y %X", &ttm);
+		strftime(buffer, sizeof(buffer), "%d-%b-%y %X", ttm);
 		fprintf(f, "[%s] %s\n", buffer, mess);
 		fclose(f);
 	}
-	else
-	{
-		cfig.dnsLogLevel = 0;
-		cfig.dhcpLogLevel = 0;
-	}
+//	else
+//	{
+//		cfig.dnsLogLevel = 0;
+//		cfig.dhcpLogLevel = 0;
+//	}
 
 	return;
 }
@@ -11100,51 +10753,51 @@ void __cdecl logThread(void *lpParam)
 	WaitForSingleObject(lEvent, INFINITE);
 	char *mess = (char*)lpParam;
 	time_t t = time(NULL);
-	tm ttm;
-	localtime_s(&ttm,&t);
+	tm *ttm = localtime(&t);
 	char buffer[_MAX_PATH];
-	strftime(buffer, sizeof(buffer), logFile, &ttm);
+	strftime(buffer, sizeof(buffer), logFile, ttm);
 
 	if (strcmp(cfig.logFileName, buffer))
 	{
 		if (cfig.logFileName[0])
 		{
-			FILE *f;
+			FILE *f = fopen(cfig.logFileName, "at");
 
-			if (0== fopen_s(&f, cfig.logFileName, "at"))
+			if (f)
 			{
 				fprintf(f, "Logging Continued on file %s\n", buffer);
 				fclose(f);
 			}
 
-			strcpy_s(cfig.logFileName, sizeof(cfig.logFileName), buffer);
+			strcpy(cfig.logFileName, buffer);
+			f = fopen(cfig.logFileName, "at");
 
-			if (0== fopen_s(&f, cfig.logFileName, "at"))
+			if (f)
 			{
-				fprintf(f, "%s %s\n\n", sVersionName, sVersionNumber);
+				fprintf(f, "%s\n\n", sVersion);
 				fclose(f);
 			}
 		}
 
-		strcpy_s(cfig.logFileName, sizeof(cfig.logFileName), buffer);
+		strcpy(cfig.logFileName, buffer);
 		WritePrivateProfileString("InternetShortcut","URL", buffer, lnkFile);
 		WritePrivateProfileString("InternetShortcut","IconIndex", "0", lnkFile);
 		WritePrivateProfileString("InternetShortcut","IconFile", buffer, lnkFile);
 	}
 
-	FILE *f;
+	FILE *f = fopen(cfig.logFileName, "at");
 
-	if (0 == fopen_s(&f, cfig.logFileName, "at"))
+	if (f)
 	{
-		strftime(buffer, sizeof(buffer), "%d-%b-%y %X", &ttm);
+		strftime(buffer, sizeof(buffer), "%d-%b-%y %X", ttm);
 		fprintf(f, "[%s] %s\n", buffer, mess);
 		fclose(f);
 	}
-	else
-	{
-		cfig.dnsLogLevel = 0;
-		cfig.dhcpLogLevel = 0;
-	}
+//	else
+//	{
+//		cfig.dnsLogLevel = 0;
+//		cfig.dhcpLogLevel = 0;
+//	}
 
 	free(mess);
 	SetEvent(lEvent);
@@ -11160,7 +10813,7 @@ void __cdecl logDebug(void *lpParam)
 	char localreq->extbuff[256];
 	data9 *req = (data9*)lpParam;
 	genHostName(localBuff, req->dhcpp.header.bp_chaddr, req->dhcpp.header.bp_hlen);
-	sprintf_s(localreq->extbuff,sizeof(localreq->extbuff), cliFile, localBuff);
+	sprintf(localreq->extbuff, cliFile, localBuff);
 	FILE *f = fopen(localreq->extbuff, "at");
 
 	if (f)
@@ -11169,11 +10822,11 @@ void __cdecl logDebug(void *lpParam)
 		strftime(localreq->extbuff, sizeof(localreq->extbuff), "%d-%m-%y %X", ttm);
 
 		char *s = localBuff;
-		s += sprintf_s(s,sizeof(s), localreq->extbuff);
-		s += sprintf_s(s,sizeof(s), " SourceMac=%s", req->chaddr);
-		s += sprintf_s(s,sizeof(s), " ClientIP=%s", IP2String(localreq->extbuff, req->dhcpp.header.bp_ciaddr));
-		s += sprintf_s(s,sizeof(s), " SourceIP=%s", IP2String(localreq->extbuff, req->remote.sin_addr.s_addr));
-		s += sprintf_s(s,sizeof(s), " RelayAgent=%s", IP2String(localreq->extbuff, req->dhcpp.header.bp_giaddr));
+		s += sprintf(s, localreq->extbuff);
+		s += sprintf(s, " SourceMac=%s", req->chaddr);
+		s += sprintf(s, " ClientIP=%s", IP2String(localreq->extbuff, req->dhcpp.header.bp_ciaddr));
+		s += sprintf(s, " SourceIP=%s", IP2String(localreq->extbuff, req->remote.sin_addr.s_addr));
+		s += sprintf(s, " RelayAgent=%s", IP2String(localreq->extbuff, req->dhcpp.header.bp_giaddr));
 		fprintf(f, "%s\n", localBuff);
 
 		data3 *op;
@@ -11191,13 +10844,13 @@ void __cdecl logDebug(void *lpParam)
 			for (MYBYTE i = 0; i < maxInd; i++)
 				if (op->opt_code == opData[i].opTag)
 				{
-					strcpy_s(opName, sizeof(opName), opData[i].opName);
+					strcpy(opName, opData[i].opName);
 					opType = opData[i].opType;
 					break;
 				}
 
 			s = localBuff;
-			s += sprintf_s(s,sizeof(s), "\t%d\t%s\t", op->opt_code, opName);
+			s += sprintf(s, "\t%d\t%s\t", op->opt_code, opName);
 			//printf("OpCode=%u,OpLen=%u,OpType=%u\n", op->opt_code, op->size, opType);
 
 			switch (opType)
@@ -11205,28 +10858,28 @@ void __cdecl logDebug(void *lpParam)
 				case 1:
 					memcpy(localreq->extbuff, op->value, op->size);
 					localreq->extbuff[op->size] = 0;
-					sprintf_s(s,sizeof(s), "%s", localreq->extbuff);
+					sprintf(s, "%s", localreq->extbuff);
 					break;
 				case 3:
 					for (BYTE x = 4; x <= op->size; x += 4)
 					{
 						IP2String(localreq->extbuff, fIP(op->value));
-						s += sprintf_s(s,sizeof(s), "%s,", localreq->extbuff);
+						s += sprintf(s, "%s,", localreq->extbuff);
 					}
 					break;
 				case 4:
-					sprintf_s(s,sizeof(s), "%u", fULong(op->value));
+					sprintf(s, "%u", fULong(op->value));
 					break;
 				case 5:
-					sprintf_s(s,sizeof(s), "%u", fUShort(op->value));
+					sprintf(s, "%u", fUShort(op->value));
 					break;
 				case 6:
 				case 7:
-					sprintf_s(s,sizeof(s), "%u", op->value[0]);
+					sprintf(s, "%u", op->value[0]);
 					break;
 				default:
 					if (op->size == 1)
-						sprintf_s(s,sizeof(s), "%u", op->value[0]);
+						sprintf(s, "%u", op->value[0]);
 					else
 						hex2String(s, op->value, op->size);
 					break;
@@ -11278,69 +10931,62 @@ void logDNSMess(char *logBuff, MYBYTE logLevel)
 	}
 }
 
-void logDNSMess(dnsRequest *req, char *logBuff, MYBYTE logLevel)
+void logDNSMess(data5 *req, char *logBuff, MYBYTE logLevel)
 {
 	if (verbatim)
 		printf("%s\n", logBuff);
 
 	if (logLevel <= cfig.dnsLogLevel)
 	{
-		char *mess = (char*)calloc(sizeof(char), 512);
-		if (!mess)
-		{
-			char ipBuf[16];
-			inet_ntop(AF_INET, &(req->remote.sin_addr), ipBuf, sizeof(ipBuf));
-			sprintf_s(mess, sizeof(char) * 512, "Client %s, %s", ipBuf, logBuff);
-			_beginthread(logThread, 0, mess);
-		}
+		char *mess = (char*)calloc(1, 512);
+		sprintf(mess, "Client %s, %s", inet_ntoa(req->remote.sin_addr), logBuff);
+		_beginthread(logThread, 0, mess);
 	}
 }
 
-void logTCPMess(dnsRequest *req, char *logBuff, MYBYTE logLevel)
+void logTCPMess(data5 *req, char *logBuff, MYBYTE logLevel)
 {
 	if (verbatim)
 		printf("%s\n", logBuff);
 
 	if (logLevel <= cfig.dnsLogLevel)
 	{
-		char *mess = (char*)calloc(sizeof(char), 512);
-		char ipBuf[16];
-		inet_ntop(AF_INET, &(req->remote.sin_addr), ipBuf, sizeof(ipBuf));
-		sprintf_s(mess, sizeof(char) * 512, "TCP Client %s, %s", ipBuf, logBuff);
+		char *mess = (char*)calloc(1, 512);
+		sprintf(mess, "TCP Client %s, %s", inet_ntoa(req->remote.sin_addr), logBuff);
 		_beginthread(logThread, 0, mess);
 	}
 }
 
 data7 *createCache(data71 *lump)
 {
-	MYWORD dataSize = (unsigned short)(4 + sizeof(data7) + strlen(lump->mapname));
+	MYWORD dataSize = 4 + sizeof(data7) + strlen(lump->mapname);
 	data7 *cache = NULL;
 
 	switch (lump->cType)
 	{
 		case CTYPE_DHCP_ENTRY:
 		{
-			dataSize += MAX_HOSTNAME_STR_SIZE;
+			dataSize += 64;
 			dataSize += lump->optionSize;
-			cache = (data7*)calloc(sizeof(char), dataSize);
+			cache = (data7*)calloc(1, dataSize);
 
 			if (!cache)
 				return NULL;
 
 			MYBYTE *dp = &cache->data;
 			cache->mapname = (char*)dp;
-			strcpy_s(cache->mapname, dataSize - ((char *)dp - (char *)cache), lump->mapname);
+			strcpy(cache->mapname, lump->mapname);
 			myLower(cache->mapname);
 			dp += strlen(cache->mapname);
 			dp++;
 			cache->hostname = (char*)dp;
 
 			if (lump->hostname)
-				strcpy_s(cache->hostname, dataSize - ((char *)dp - (char *)cache), lump->hostname);
+				strcpy(cache->hostname, lump->hostname);
 
 			dp += 65;
 
-			if (lump->optionSize >= 5)
+			if (lump->options && lump->optionSize >= 5)
 			{
 				cache->options = dp;
 				memcpy(cache->options, lump->options, lump->optionSize);
@@ -11351,9 +10997,9 @@ data7 *createCache(data71 *lump)
 		case CTYPE_QUEUE:
 		{
 			//debug("about to create queue");
-			dataSize += (unsigned short)strlen(lump->query);
+			dataSize += strlen(lump->query);
 			dataSize +=  sizeof(SOCKADDR_IN);
-			cache = (data7*)calloc(sizeof(char), dataSize);
+			cache = (data7*)calloc(1, dataSize);
 
 			if (!cache)
 				return NULL;
@@ -11363,12 +11009,12 @@ data7 *createCache(data71 *lump)
 			MYBYTE *dp = &cache->data;
 			cache->mapname = (char*)dp;
 			cache->name = (char*)dp;
-			strcpy_s(cache->mapname, dataSize - ((char *)dp - (char *)cache), lump->mapname);
+			strcpy(cache->mapname, lump->mapname);
 			//myLower(cache->mapname);
 			dp += strlen(cache->mapname);
 			dp++;
 			cache->query = (char*)dp;
-			strcpy_s(cache->query, dataSize - ((char *)dp - (char *)cache), lump->query);
+			strcpy(cache->query, lump->query);
 			//debug(cache->query);
 			//debug(strlen(cache->query));
 			dp += strlen(cache->query);
@@ -11383,7 +11029,7 @@ data7 *createCache(data71 *lump)
 		case CTYPE_CACHED:
 		{
 			dataSize += lump->bytes;
-			cache = (data7*)calloc(sizeof(char), dataSize);
+			cache = (data7*)calloc(1, dataSize);
 
 			if (!cache)
 				return NULL;
@@ -11392,7 +11038,7 @@ data7 *createCache(data71 *lump)
 			cache->dnsType = lump->dnsType;
 			MYBYTE *dp = &cache->data;
 			cache->mapname = (char*)dp;
-			setMapName(cache->mapname, dataSize - ((char *)dp - (char *)cache), lump->mapname, lump->dnsType);
+			setMapName(cache->mapname, lump->mapname, lump->dnsType);
 			dp++;
 			cache->name = (char*)dp;
 			dp += strlen(lump->mapname);
@@ -11413,8 +11059,10 @@ data7 *createCache(data71 *lump)
 		case CTYPE_LOCAL_CNAME:
 		case CTYPE_EXT_CNAME:
 		{
-			dataSize += (unsigned short)strlen(lump->hostname);
-			cache = (data7*)calloc(sizeof(char), dataSize);
+			if (lump->hostname)
+				dataSize += strlen(lump->hostname);
+
+			cache = (data7*)calloc(1, dataSize);
 
 			if (!cache)
 				return NULL;
@@ -11423,19 +11071,23 @@ data7 *createCache(data71 *lump)
 			cache->dnsType = lump->dnsType;
 			MYBYTE *dp = &cache->data;
 			cache->mapname = (char*)dp;
-			setMapName(cache->mapname, dataSize - ((char *)dp - (char *)cache), lump->mapname, lump->dnsType);
+			setMapName(cache->mapname, lump->mapname, lump->dnsType);
 			dp++;
 			cache->name = (char*)dp;
 			dp += strlen(lump->mapname);
 			dp++;
-			cache->hostname = (char*)dp;
-			strcpy_s(cache->hostname, dataSize - ((char *)dp - (char *)cache), lump->hostname);
+
+			if (lump->hostname)
+			{
+				cache->hostname = (char*)dp;
+				strcpy(cache->hostname, lump->hostname);
+			}
 			break;
 		}
 
 		default:
 		{
-			cache = (data7*)calloc(sizeof(char), dataSize);
+			cache = (data7*)calloc(1, dataSize);
 
 			if (!cache)
 				return NULL;
@@ -11444,14 +11096,14 @@ data7 *createCache(data71 *lump)
 			cache->dnsType = lump->dnsType;
 			MYBYTE *dp = &cache->data;
 			cache->mapname = (char*)dp;
-			setMapName(cache->mapname, dataSize - sizeof(data7), lump->mapname, lump->dnsType);
+			setMapName(cache->mapname, lump->mapname, lump->dnsType);
 			dp++;
 			cache->name = (char*)dp;
 			break;
 		}
 	}
 
-	//sprintf_s(logBuff, sizeof(logBuff), "New Cache cType=%d dnsType=%u name=%s", cache->cType, cache->dnsType, cache->name);
+	//sprintf(logBuff, "New Cache cType=%d dnsType=%u name=%s", cache->cType, cache->dnsType, cache->name);
 	//logMess(logBuff, 1);
 	return cache;
 }

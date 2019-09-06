@@ -2,6 +2,7 @@
 #chkconfig: 2345 20 80
 #description: #start/stop dualserver
 #Originally Contributed by sharne, slightly modified.
+
 ### BEGIN INIT INFO
 # Provides:          dualserverd
 # Required-Start:    $local_fs $network
@@ -9,13 +10,14 @@
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: Start daemon at boot time
-# Description:       Enable service provided by daemon.
+# Description:       Enable dns/dhcp service provided by daemon.
 ### END INIT INFO
 
-##### Modify 3 line below for location of executive and other files #####
+##### Modify 4 line below for location of executive and other files #####
 EXEFILE=/opt/dualserver/dualserverd
 INIFILE=/opt/dualserver/dualserver.ini
 LOGFILE=/opt/dualserver/log/dualserver%Y%m%d.log
+STATEFILE=/tmp/dualserver.state
 ##### There is generally no need to modify anything below this line #####
 
 # Get pid
@@ -25,7 +27,7 @@ pidnum=$( ps -eaf | grep -v grep | grep -w dualserverd | awk '{ print $3,$2 }' |
 
 # Start dualserver:
 dualserver_start() {
-${EXEFILE} -i ${INIFILE} -l ${LOGFILE}
+${EXEFILE} -i ${INIFILE} -l ${LOGFILE} -s ${STATEFILE}
 sleep 1
 getpid
 if [ -n "$pidnum" ]; then
